@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Weekly Schedule</title>
+<title>Schedule</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -36,10 +36,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .status.saving{color:var(--info-text)}
 .status.error{color:var(--danger-text)}
 .cal-outer{display:flex;flex:1;overflow:hidden}
-.time-gutter{width:54px;flex-shrink:0;padding-top:40px;overflow:hidden;background:var(--bg)}
+.grid-scroll{flex:1;overflow-y:auto;overflow-x:hidden;position:relative}
+.grid-with-gutter{display:flex}
+.time-gutter{width:54px;flex-shrink:0;background:var(--bg)}
+.time-gutter-spacer{height:40px}
 .time-tick{height:56px;display:flex;align-items:flex-start;justify-content:flex-end;padding-right:8px;font-size:10px;color:var(--text3);line-height:1}
 .time-tick.hr{color:var(--text2);font-size:11px}
-.grid-scroll{flex:1;overflow-y:auto;overflow-x:hidden;position:relative}
+.grid-right{flex:1;display:flex;flex-direction:column;min-width:0}
 .grid-inner{display:grid;grid-template-columns:repeat(7,1fr);position:relative}
 .day-head-row{display:grid;grid-template-columns:repeat(7,1fr);position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border)}
 .day-head{padding:8px 4px;text-align:center;border-right:1px solid var(--border);height:40px}
@@ -107,10 +110,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
     <button class="btn btn-primary" id="newEvtBtn"><i class="ti ti-plus"></i> New event</button>
   </div>
   <div class="cal-outer">
-    <div class="time-gutter" id="timeGutter"></div>
     <div class="grid-scroll" id="gridScroll">
-      <div class="day-head-row" id="dayHeadRow"></div>
-      <div class="grid-inner" id="gridInner"></div>
+      <div class="grid-with-gutter">
+        <div class="time-gutter" id="timeGutter">
+          <div class="time-gutter-spacer"></div>
+        </div>
+        <div class="grid-right">
+          <div class="day-head-row" id="dayHeadRow"></div>
+          <div class="grid-inner" id="gridInner"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -130,8 +139,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 <script>
 // ─── CONFIGURATION ────────────────────────────────────────────────
-const SUPABASE_URL = 'https://vvrtwiuqcxdejsgxrjpq.supabase.co'   // e.g. https://abcxyz.supabase.co
-const SUPABASE_KEY = 'sb_publishable_4j4Nm7oheyATycA7venM-w_YTAtM90_'      // starts with eyJ...
+const SUPABASE_URL = 'https://vvrtwiuqcxdejsgxrjpq.supabase.co'
+const SUPABASE_KEY = 'sb_publishable_4j4Nm7oheyATycA7venM-w_YTAtM90_'
 // ──────────────────────────────────────────────────────────────────
 
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -234,7 +243,7 @@ function fmt(h) {
 
 function buildGutter() {
   const g = document.getElementById('timeGutter');
-  g.innerHTML = '';
+  g.innerHTML = '<div class="time-gutter-spacer"></div>';
   const r = visRange();
   for (let h = r.s; h < r.e; h++) {
     const t = document.createElement('div');
