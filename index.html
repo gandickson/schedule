@@ -41,14 +41,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .status.error{color:var(--danger-text)}
 .cal-outer{display:flex;flex:1;overflow:hidden;min-height:0}
 .grid-scroll{flex:1;overflow-y:auto;overflow-x:auto;position:relative;-webkit-overflow-scrolling:touch}
-.grid-with-gutter{display:flex;min-width:480px}
+.grid-with-gutter{display:flex;min-width:max-content}
 .time-gutter{width:54px;flex-shrink:0;background:var(--bg);position:sticky;left:0;z-index:8}
 .time-gutter-spacer{height:40px;background:var(--bg)}
 .time-tick{height:56px;display:flex;align-items:flex-start;justify-content:flex-end;padding-right:8px;font-size:10px;color:var(--text3);line-height:1;background:var(--bg)}
 .time-tick.hr{color:var(--text2);font-size:11px}
-.grid-right{flex:1;display:flex;flex-direction:column;min-width:0}
-.grid-inner{display:grid;grid-template-columns:repeat(7,minmax(60px,1fr));position:relative}
-.day-head-row{display:grid;grid-template-columns:repeat(7,minmax(60px,1fr));position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border)}
+.grid-right{display:flex;flex-direction:column;min-width:0}
+.grid-inner{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));position:relative;min-width:840px}
+.day-head-row{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border);min-width:840px}
 .day-head{padding:8px 4px;text-align:center;border-right:1px solid var(--border);height:40px;background:var(--bg)}
 .day-head:last-child{border-right:none}
 .day-head.today{background:var(--today-bg);border-bottom:2px solid var(--today-border)}
@@ -59,7 +59,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .day-col{border-right:1px solid var(--border);position:relative}
 .day-col:last-child{border-right:none}
 .hslot{height:28px;border-bottom:1px dashed var(--border);cursor:crosshair}
-.hslot.on-hour{border-bottom-color:var(--border2);border-bottom-style:solid}
+.hslot.on-hour{border-bottom:2px solid var(--border2)}
 .hslot:hover{background:var(--bg2)}
 .now-line{position:absolute;left:0;right:0;height:2px;background:var(--now-line);z-index:15;pointer-events:none}
 .now-line::before{content:'';position:absolute;left:-1px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--now-line)}
@@ -74,6 +74,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .evt-edit:hover{background:rgba(255,255,255,0.5)}
 .resize-bar{position:absolute;bottom:0;left:0;right:0;height:8px;cursor:s-resize;touch-action:none}
 .resize-bar:hover{background:rgba(0,0,0,0.15)}
+.resize-bar-top{position:absolute;top:0;left:0;right:0;height:8px;cursor:n-resize;touch-action:none}
+.resize-bar-top:hover{background:rgba(0,0,0,0.15)}
+.evt-tooltip{position:fixed;z-index:999;background:rgba(20,20,20,0.92);color:#fff;font-size:12px;border-radius:6px;padding:6px 10px;pointer-events:none;white-space:pre-line;max-width:220px;line-height:1.4;box-shadow:0 2px 10px rgba(0,0,0,0.25);transform:translate(-50%,-110%);transition:opacity 0.1s}
 .ghost-block{position:absolute;border-radius:5px;pointer-events:none;z-index:50;opacity:0.4;border:2px dashed rgba(0,0,0,0.3)}
 
 /* Modal */
@@ -222,11 +225,9 @@ if (!configured) document.getElementById('configBanner').style.display = 'flex';
 // ─── BUILD TIME OPTIONS ───────────────────────────────────────────
 function buildTimeOptions() {
   const opts = [];
-  for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += 30) {
-      const val = h + m / 60;
-      opts.push({ val, label: fmt(val) });
-    }
+  for (let i = 0; i < 48; i++) {
+    const val = i * 0.5; // clean: 0, 0.5, 1, 1.5 ... 23.5
+    opts.push({ val: val.toString(), label: fmt(val) });
   }
   ['evtStartInput','evtEndInput'].forEach(id => {
     const sel = document.getElementById(id);
@@ -239,7 +240,7 @@ function buildTimeOptions() {
   document.getElementById('evtStartInput').addEventListener('change', () => {
     const sv = parseFloat(document.getElementById('evtStartInput').value);
     const ev2 = parseFloat(document.getElementById('evtEndInput').value);
-    if (ev2 <= sv) document.getElementById('evtEndInput').value = sv + 0.5;
+    if (ev2 <= sv) document.getElementById('evtEndInput').value = (sv + 1).toString();
   });
 }
 
@@ -360,7 +361,7 @@ function buildGrid() {
     col.style.height = (ts * SLOT_H) + 'px';
     for (let s = 0; s < ts; s++) {
       const slot = document.createElement('div');
-      slot.className = 'hslot' + (s % 2 === 0 ? ' on-hour' : '');
+      slot.className = 'hslot' + (s % 2 === 1 ? ' on-hour' : '');
       slot.dataset.s = s; slot.dataset.di = di;
       slot.addEventListener('mousedown', onSlotDown);
       slot.addEventListener('touchstart', onSlotTouch, {passive:false});
@@ -435,17 +436,26 @@ function renderEvents() {
       el.style.cssText = `top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${pct}% - 4px);background:${ev.color.bg};color:${ev.color.fg}`;
       const descHtml = ev.description ? `<div class="evt-desc">${ev.description}</div>` : '';
       el.innerHTML = `
+        <div class="resize-bar-top" data-id="${ev.id}"></div>
         <button class="evt-edit" data-id="${ev.id}" title="Edit"><i class="ti ti-pencil"></i></button>
         <div class="evt-title">${ev.title || '(no title)'}</div>
         <div class="evt-time">${fmt(ev.startH)}–${fmt(ev.endH)}</div>
         ${descHtml}
         <div class="resize-bar" data-id="${ev.id}"></div>
       `;
+      el.addEventListener('mouseenter', e => {
+        const ev2 = events.find(x => x.id == el.dataset.id);
+        if (ev2) showTooltip(ev2, e.clientX, e.clientY);
+      });
+      el.addEventListener('mousemove', e => posTooltip(e.clientX, e.clientY));
+      el.addEventListener('mouseleave', hideTooltip);
       el.addEventListener('mousedown', onEvtDown);
       el.addEventListener('touchstart', onEvtTouch, {passive:false});
       el.querySelector('.evt-edit').addEventListener('click', e => { e.stopPropagation(); openEdit(ev.id); });
-      el.querySelector('.resize-bar').addEventListener('mousedown', e => { e.stopPropagation(); onResizeDown(e, ev.id); });
-      el.querySelector('.resize-bar').addEventListener('touchstart', e => { e.stopPropagation(); onResizeTouch(e, ev.id); }, {passive:false});
+      el.querySelector('.resize-bar').addEventListener('mousedown', e => { e.stopPropagation(); onResizeDown(e, ev.id, 'bottom'); });
+      el.querySelector('.resize-bar').addEventListener('touchstart', e => { e.stopPropagation(); onResizeTouch(e, ev.id, 'bottom'); }, {passive:false});
+      el.querySelector('.resize-bar-top').addEventListener('mousedown', e => { e.stopPropagation(); onResizeDown(e, ev.id, 'top'); });
+      el.querySelector('.resize-bar-top').addEventListener('touchstart', e => { e.stopPropagation(); onResizeTouch(e, ev.id, 'top'); }, {passive:false});
       col.appendChild(el);
     });
   }
@@ -466,10 +476,10 @@ function onEvtDown(e) {
   document.addEventListener('mouseup', onDragUp);
 }
 
-function onResizeDown(e, id) {
+function onResizeDown(e, id, handle='bottom') {
   e.preventDefault();
   const ev = events.find(x => x.id == id); if (!ev) return;
-  drag = {type:'resize', id:ev.id, startH:ev.startH, endH:ev.endH, di:ev.di, my:e.clientY};
+  drag = {type:'resize', handle, id:ev.id, startH:ev.startH, endH:ev.endH, di:ev.di, my:e.clientY};
   document.addEventListener('mousemove', onDragMove);
   document.addEventListener('mouseup', onDragUp);
 }
@@ -496,18 +506,24 @@ function calcDragResult(clientX, clientY) {
   const gi = document.getElementById('gridInner');
   const rect = gi.getBoundingClientRect();
   const ev = events.find(x => x.id == drag.id);
+  // SLOT_H px = 0.5 hours, so pixels → hours = px / (SLOT_H * 2)
+  const pxPerHour = SLOT_H * 2;
+  const dh = Math.round(((clientY - drag.my) / pxPerHour) * 2) / 2;
   if (drag.type === 'move') {
-    const dh = Math.round(((clientY - drag.my) / SLOT_H) * 2) / 2;
     const dur = drag.endH - drag.startH;
     const r = visRange();
     const ns = Math.round(Math.max(r.s, Math.min(r.e - dur, drag.startH + dh)) * 2) / 2;
     const nd = Math.max(0, Math.min(6, drag.di + Math.round((clientX - drag.mx) / (rect.width / 7))));
     return {ns, ne: ns + dur, nd, color: ev.color.bg};
   } else {
-    const dh = Math.round(((clientY - drag.my) / SLOT_H) * 2) / 2;
     const r = visRange();
-    const ne = Math.round(Math.max(drag.startH + 0.5, Math.min(r.e, drag.endH + dh)) * 2) / 2;
-    return {ns: drag.startH, ne, nd: drag.di, color: ev.color.bg};
+    if (drag.handle === 'top') {
+      const ns = Math.round(Math.max(r.s, Math.min(drag.endH - 0.5, drag.startH + dh)) * 2) / 2;
+      return {ns, ne: drag.endH, nd: drag.di, color: ev.color.bg};
+    } else {
+      const ne = Math.round(Math.max(drag.startH + 0.5, Math.min(r.e, drag.endH + dh)) * 2) / 2;
+      return {ns: drag.startH, ne, nd: drag.di, color: ev.color.bg};
+    }
   }
 }
 
@@ -527,6 +543,7 @@ async function onDragUp(e) {
   if (ev) {
     const {ns, ne, nd} = calcDragResult(e.clientX, e.clientY);
     if (drag.type === 'move') { ev.startH = ns; ev.endH = ne; ev.di = nd; }
+    else if (drag.handle === 'top') { ev.startH = ns; }
     else { ev.endH = ne; }
     document.querySelectorAll('.evt.dragging').forEach(el => el.classList.remove('dragging'));
     drag = null;
@@ -548,10 +565,10 @@ function onEvtTouch(e) {
   document.addEventListener('touchend', onTouchDragUp);
 }
 
-function onResizeTouch(e, id) {
+function onResizeTouch(e, id, handle='bottom') {
   const t = e.touches[0];
   const ev = events.find(x => x.id == id); if (!ev) return;
-  drag = {type:'resize', id:ev.id, startH:ev.startH, endH:ev.endH, di:ev.di, my:t.clientY};
+  drag = {type:'resize', handle, id:ev.id, startH:ev.startH, endH:ev.endH, di:ev.di, my:t.clientY};
   document.addEventListener('touchmove', onTouchDragMove, {passive:false});
   document.addEventListener('touchend', onTouchDragUp);
 }
@@ -575,6 +592,7 @@ async function onTouchDragUp(e) {
   if (ev) {
     const {ns, ne, nd} = calcDragResult(t.clientX, t.clientY);
     if (drag.type === 'move') { ev.startH = ns; ev.endH = ne; ev.di = nd; }
+    else if (drag.handle === 'top') { ev.startH = ns; }
     else { ev.endH = ne; }
     document.querySelectorAll('.evt.dragging').forEach(el => el.classList.remove('dragging'));
     drag = null;
@@ -593,7 +611,7 @@ function onSlotDown(e) {
   const s = parseInt(e.currentTarget.dataset.s);
   const di = parseInt(e.currentTarget.dataset.di);
   const r = visRange();
-  createDrag = {di, startH: r.s + s * 0.5, endH: r.s + s * 0.5 + 0.5};
+  createDrag = {di, startH: r.s + s * 0.5, endH: r.s + s * 0.5 + 0.5, startY: e.clientY};
   document.addEventListener('mousemove', onCreateMove);
   document.addEventListener('mouseup', onCreateUp);
 }
@@ -618,9 +636,12 @@ function slotFromClientY(clientY) {
 
 function onCreateMove(e) {
   if (!createDrag) return;
-  const slot = slotFromClientY(e.clientY);
   const r = visRange();
-  createDrag.endH = Math.round(Math.max(createDrag.startH + 0.5, Math.min(r.e, r.s + slot * 0.5 + 0.5)) * 2) / 2;
+  // Use delta from mousedown position so there's no jump on first move
+  const dy = e.clientY - createDrag.startY;
+  const slotsAdded = Math.round(dy / SLOT_H);
+  const endH = Math.round(Math.max(createDrag.startH + 0.5, Math.min(r.e, createDrag.startH + 0.5 + slotsAdded * 0.5)) * 2) / 2;
+  createDrag.endH = endH;
   positionGhost(createDrag.di, createDrag.startH, createDrag.endH, '#3B82F6');
 }
 
@@ -628,9 +649,11 @@ function onCreateTouchMove(e) {
   e.preventDefault();
   if (!createDrag) return;
   const t = e.touches[0];
-  const slot = slotFromClientY(t.clientY);
   const r = visRange();
-  createDrag.endH = Math.round(Math.max(createDrag.startH + 0.5, Math.min(r.e, r.s + slot * 0.5 + 0.5)) * 2) / 2;
+  const dy = t.clientY - createDrag.startY;
+  const slotsAdded = Math.round(dy / SLOT_H);
+  const endH = Math.round(Math.max(createDrag.startH + 0.5, Math.min(r.e, createDrag.startH + 0.5 + slotsAdded * 0.5)) * 2) / 2;
+  createDrag.endH = endH;
   positionGhost(createDrag.di, createDrag.startH, createDrag.endH, '#3B82F6');
 }
 
@@ -638,7 +661,10 @@ function finishCreate() {
   const g = document.getElementById('ghostBlock');
   if (g) g.style.display = 'none';
   if (!createDrag) return;
-  pendingEvt = {di: createDrag.di, startH: createDrag.startH, endH: createDrag.endH};
+  const drawn = createDrag.endH - createDrag.startH;
+  // Only snap to 1hr if user just clicked without dragging (drawn <= one slot)
+  const endH = drawn <= 0.5 ? createDrag.startH + 1 : createDrag.endH;
+  pendingEvt = {di: createDrag.di, startH: createDrag.startH, endH};
   createDrag = null;
   openNew();
 }
@@ -657,8 +683,8 @@ function onCreateTouchUp() {
 
 // ─── MODAL ────────────────────────────────────────────────────────
 function setModalTimes(startH, endH) {
-  document.getElementById('evtStartInput').value = startH;
-  document.getElementById('evtEndInput').value = endH;
+  document.getElementById('evtStartInput').value = (Math.round(startH * 2) / 2).toString();
+  document.getElementById('evtEndInput').value = (Math.round(endH * 2) / 2).toString();
 }
 
 function openNew() {
@@ -764,6 +790,30 @@ document.getElementById('hideOff').addEventListener('change', e => {
   buildGutter();
   buildGrid();
 });
+
+// ─── TOOLTIP ──────────────────────────────────────────────────────
+const tooltip = document.createElement('div');
+tooltip.className = 'evt-tooltip';
+tooltip.style.display = 'none';
+document.body.appendChild(tooltip);
+
+function showTooltip(ev, x, y) {
+  let content = `<strong>${ev.title || '(no title)'}</strong>\n${fmt(ev.startH)} – ${fmt(ev.endH)}`;
+  if (ev.description) content += `\n${ev.description}`;
+  tooltip.innerHTML = content.replace(/\n/g, '<br>');
+  tooltip.style.display = 'block';
+  tooltip.style.opacity = '1';
+  posTooltip(x, y);
+}
+
+function posTooltip(x, y) {
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+
+function hideTooltip() {
+  tooltip.style.display = 'none';
+}
 
 // ─── INIT ─────────────────────────────────────────────────────────
 async function init() {
