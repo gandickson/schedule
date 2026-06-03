@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<title>Schedule v1.01</title>
+<title>Schedule v1.02</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -134,7 +134,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 <div id="app">
   <div class="toolbar">
-    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.01</span></span>
+    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.02</span></span>
     <div class="spacer"></div>
     <span class="status" id="statusMsg"></span>
     <label class="toggle-label">
@@ -675,14 +675,14 @@ function onSlotDown(e) {
 }
 
 function onSlotTouch(e) {
-  // Two or more fingers = allow native scroll, don't intercept
+  // Two or more fingers = native scroll, don't intercept
   if (e.touches.length >= 2) return;
-  e.preventDefault();
+  // Don't preventDefault here — let touchmove decide based on direction
   const t = e.touches[0];
   const s = parseInt(e.currentTarget.dataset.s);
   const di = parseInt(e.currentTarget.dataset.di);
   const r = visRange();
-  createDrag = {di, startH: r.s + s * 0.5, endH: r.s + s * 0.5 + 0.5, startY: t.clientY};
+  createDrag = {di, startH: r.s + s * 0.5, endH: r.s + s * 0.5 + 0.5, startY: t.clientY, startX: t.clientX, activated: false};
   document.addEventListener('touchmove', onCreateTouchMove, {passive:false});
   document.addEventListener('touchend', onCreateTouchUp);
 }
@@ -706,11 +706,32 @@ function onCreateMove(e) {
 }
 
 function onCreateTouchMove(e) {
-  e.preventDefault();
   if (!createDrag) return;
+  // Two fingers appeared mid-gesture = cancel draw, allow scroll
+  if (e.touches.length >= 2) {
+    const g = document.getElementById('ghostBlock');
+    if (g) g.style.display = 'none';
+    createDrag = null;
+    document.removeEventListener('touchmove', onCreateTouchMove);
+    document.removeEventListener('touchend', onCreateTouchUp);
+    return;
+  }
   const t = e.touches[0];
-  const r = visRange();
+  const dx = Math.abs(t.clientX - createDrag.startX);
   const dy = t.clientY - createDrag.startY;
+  // If moving more horizontally than vertically, treat as scroll — cancel
+  if (!createDrag.activated && dx > Math.abs(dy)) {
+    const g = document.getElementById('ghostBlock');
+    if (g) g.style.display = 'none';
+    createDrag = null;
+    document.removeEventListener('touchmove', onCreateTouchMove);
+    document.removeEventListener('touchend', onCreateTouchUp);
+    return;
+  }
+  // Vertical draw confirmed — prevent scroll
+  e.preventDefault();
+  createDrag.activated = true;
+  const r = visRange();
   const slotsAdded = Math.round(dy / SLOT_H);
   const endH = Math.round(Math.max(createDrag.startH + 0.5, Math.min(r.e, createDrag.startH + 0.5 + slotsAdded * 0.5)) * 2) / 2;
   createDrag.endH = endH;
@@ -721,11 +742,11 @@ function finishCreate() {
   const g = document.getElementById('ghostBlock');
   if (g) g.style.display = 'none';
   if (!createDrag) return;
-  const drawn = createDrag.endH - createDrag.startH;
-  // Only snap to 1hr if user just clicked without dragging (drawn <= one slot)
-  const endH = drawn <= 0.5 ? createDrag.startH + 1 : createDrag.endH;
-  pendingEvt = {di: createDrag.di, startH: createDrag.startH, endH};
+  const drag = createDrag;
   createDrag = null;
+  const drawn = drag.endH - drag.startH;
+  const endH = drawn <= 0.5 ? drag.startH + 1 : drag.endH;
+  pendingEvt = {di: drag.di, startH: drag.startH, endH};
   openNew();
 }
 
