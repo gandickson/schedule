@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<title>Schedule v1.02</title>
+<title>Schedule v1.03</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -134,9 +134,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 <div id="app">
   <div class="toolbar">
-    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.02</span></span>
+    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.03</span></span>
     <div class="spacer"></div>
     <span class="status" id="statusMsg"></span>
+    <button class="btn" id="undoBtn" style="display:none"><i class="ti ti-arrow-back-up"></i> Undo</button>
     <label class="toggle-label">
       <input type="checkbox" id="hideOff" checked>
       <span>Hide off-hours</span>
@@ -234,6 +235,7 @@ let events = [];
 let selColor = COLORS[0];
 let editId = null;
 let pendingEvt = null;
+let undoStack = []; // each entry: {type, snapshot, dbOp}
 
 const configured = SUPABASE_URL !== 'YOUR_PROJECT_URL';
 if (!configured) document.getElementById('configBanner').style.display = 'flex';
@@ -318,6 +320,49 @@ async function deleteEvent(id) {
   if (!configured) return;
   await sbFetch('events?id=eq.' + id, { method: 'DELETE' });
 }
+
+// ─── UNDO ─────────────────────────────────────────────────────────
+function pushUndo(type, snapshot) {
+  // snapshot is a deep copy of the event before change, or null if it was a create
+  undoStack.push({type, snapshot: snapshot ? JSON.parse(JSON.stringify(snapshot)) : null});
+  document.getElementById('undoBtn').style.display = 'inline-flex';
+}
+
+async function performUndo() {
+  if (!undoStack.length) return;
+  const entry = undoStack.pop();
+  if (!undoStack.length) document.getElementById('undoBtn').style.display = 'none';
+
+  showStatus('Undoing…', 'saving');
+  try {
+    if (entry.type === 'create') {
+      // Undo create = delete the last created event
+      const last = events[events.length - 1];
+      if (last) {
+        events = events.filter(x => x.id !== last.id);
+        await deleteEvent(last.id);
+      }
+    } else if (entry.type === 'delete') {
+      // Undo delete = re-insert
+      const ev = entry.snapshot;
+      events.push(ev);
+      ev.id = await insertEvent(ev);
+    } else if (entry.type === 'update' || entry.type === 'move') {
+      // Undo update/move = restore snapshot
+      const ev = events.find(x => x.id == entry.snapshot.id);
+      if (ev) {
+        Object.assign(ev, entry.snapshot);
+        await updateEvent(ev);
+      }
+    }
+    renderEvents();
+    showStatus('Undone');
+  } catch(err) {
+    showStatus('Undo failed', 'error');
+  }
+}
+
+document.getElementById('undoBtn').addEventListener('click', performUndo);
 
 // ─── STATUS ───────────────────────────────────────────────────────
 let statusTimer;
@@ -567,8 +612,10 @@ async function onDragUp(e) {
         const confirmed = await showConfirm(msg);
         if (!confirmed) { renderEvents(); return; }
       }
+      pushUndo('move', ev);
       ev.startH = ns; ev.endH = ne; ev.di = nd;
     } else {
+      pushUndo('move', ev);
       if (drag.handle === 'top') { ev.startH = ns; }
       else { ev.endH = ne; }
       document.querySelectorAll('.evt.dragging').forEach(el => el.classList.remove('dragging'));
@@ -647,8 +694,10 @@ async function onTouchDragUp(e) {
         const confirmed = await showConfirm(msg);
         if (!confirmed) { renderEvents(); return; }
       }
+      pushUndo('move', ev);
       ev.startH = ns; ev.endH = ne; ev.di = nd;
     } else {
+      pushUndo('move', ev);
       if (drag.handle === 'top') { ev.startH = ns; }
       else { ev.endH = ne; }
       document.querySelectorAll('.evt.dragging').forEach(el => el.classList.remove('dragging'));
@@ -825,7 +874,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   document.getElementById('modalBg').style.display = 'none';
   if (editId !== null) {
     const ev = events.find(x => x.id == editId);
-    if (ev) { Object.assign(ev, data, {color: selColor}); }
+    if (ev) { pushUndo('update', ev); Object.assign(ev, data, {color: selColor}); }
     renderEvents();
     showStatus('Saving…', 'saving');
     try { await updateEvent(ev); showStatus('Saved'); } catch(err) { showStatus('Save failed', 'error'); }
@@ -835,14 +884,16 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     pendingEvt = null;
     renderEvents();
     showStatus('Saving…', 'saving');
-    try { newEv.id = await insertEvent(newEv); showStatus('Saved'); renderEvents(); }
+    try { newEv.id = await insertEvent(newEv); pushUndo('create', null); showStatus('Saved'); renderEvents(); }
     catch(err) { showStatus('Save failed', 'error'); }
   }
 });
 
 document.getElementById('delBtn').addEventListener('click', async () => {
   const id = editId;
+  const evSnap = events.find(x => x.id == id);
   document.getElementById('modalBg').style.display = 'none';
+  if (evSnap) pushUndo('delete', evSnap);
   events = events.filter(x => x.id != id);
   renderEvents();
   showStatus('Saving…', 'saving');
