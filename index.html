@@ -78,7 +78,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .resize-bar-top:hover{background:rgba(0,0,0,0.15)}
 .evt-tooltip{position:fixed;z-index:999;background:rgba(20,20,20,0.92);color:#fff;font-size:12px;border-radius:6px;padding:6px 10px;pointer-events:none;white-space:pre-line;max-width:220px;line-height:1.4;box-shadow:0 2px 10px rgba(0,0,0,0.25);transform:translate(-50%,-110%);transition:opacity 0.1s}
 .ghost-block{position:absolute;border-radius:5px;pointer-events:none;z-index:50;opacity:0.4;border:2px dashed rgba(0,0,0,0.3)}
+.hold-ring{position:absolute;width:36px;height:36px;margin-left:-18px;margin-top:-18px;border-radius:50%;border:3px solid #3B82F6;pointer-events:none;z-index:60;transform:scale(0);transition:transform 0.05s}
+.hold-ring.active{animation:holdgrow 2s linear forwards}
+@keyframes holdgrow{0%{transform:scale(0);opacity:1}100%{transform:scale(1);opacity:0.6}}
 
+/* Confirm modal */
+.confirm-bg{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:300;display:flex;align-items:center;justify-content:center}
+.confirm-box{background:var(--bg);border-radius:var(--radius-lg);border:1px solid var(--border);padding:20px;width:300px;box-shadow:0 8px 32px rgba(0,0,0,0.2)}
+.confirm-box p{font-size:13px;color:var(--text);margin-bottom:16px;line-height:1.5}
+.confirm-actions{display:flex;gap:8px;justify-content:flex-end}
 /* Modal */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end;justify-content:center}
 @media(min-width:540px){.modal-bg{align-items:center}}
@@ -149,6 +157,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
           <div class="grid-inner" id="gridInner"></div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Move Modal -->
+<div id="confirmBg" class="confirm-bg" style="display:none">
+  <div class="confirm-box">
+    <p id="confirmMsg"></p>
+    <div class="confirm-actions">
+      <button class="btn" id="confirmNo">Cancel</button>
+      <button class="btn btn-primary" id="confirmYes">Move</button>
     </div>
   </div>
 </div>
@@ -542,15 +561,45 @@ async function onDragUp(e) {
   const ev = events.find(x => x.id == drag.id);
   if (ev) {
     const {ns, ne, nd} = calcDragResult(e.clientX, e.clientY);
-    if (drag.type === 'move') { ev.startH = ns; ev.endH = ne; ev.di = nd; }
-    else if (drag.handle === 'top') { ev.startH = ns; }
-    else { ev.endH = ne; }
-    document.querySelectorAll('.evt.dragging').forEach(el => el.classList.remove('dragging'));
-    drag = null;
+    if (drag.type === 'move') {
+      const moved = ns !== drag.startH || ne !== drag.endH || nd !== drag.di;
+      document.querySelectorAll('.evt.dragging').forEach(el => el.classList.remove('dragging'));
+      drag = null;
+      if (moved) {
+        const msg = `Move "${ev.title}" from ${DAYS[ev.di]} ${fmt(ev.startH)}–${fmt(ev.endH)} to ${DAYS[nd]} ${fmt(ns)}–${fmt(ne)}?`;
+        const confirmed = await showConfirm(msg);
+        if (!confirmed) { renderEvents(); return; }
+      }
+      ev.startH = ns; ev.endH = ne; ev.di = nd;
+    } else {
+      if (drag.handle === 'top') { ev.startH = ns; }
+      else { ev.endH = ne; }
+      document.querySelectorAll('.evt.dragging').forEach(el => el.classList.remove('dragging'));
+      drag = null;
+    }
     renderEvents();
     showStatus('Saving…', 'saving');
     try { await updateEvent(ev); showStatus('Saved'); } catch(err) { showStatus('Save failed', 'error'); }
   } else { drag = null; }
+}
+
+function showConfirm(msg) {
+  return new Promise(resolve => {
+    document.getElementById('confirmMsg').textContent = msg;
+    document.getElementById('confirmBg').style.display = 'flex';
+    const yes = document.getElementById('confirmYes');
+    const no = document.getElementById('confirmNo');
+    function cleanup(result) {
+      document.getElementById('confirmBg').style.display = 'none';
+      yes.removeEventListener('click', onYes);
+      no.removeEventListener('click', onNo);
+      resolve(result);
+    }
+    function onYes() { cleanup(true); }
+    function onNo() { cleanup(false); }
+    yes.addEventListener('click', onYes);
+    no.addEventListener('click', onNo);
+  });
 }
 
 // ─── DRAG: TOUCH ──────────────────────────────────────────────────
@@ -591,11 +640,22 @@ async function onTouchDragUp(e) {
   const ev = events.find(x => x.id == drag.id);
   if (ev) {
     const {ns, ne, nd} = calcDragResult(t.clientX, t.clientY);
-    if (drag.type === 'move') { ev.startH = ns; ev.endH = ne; ev.di = nd; }
-    else if (drag.handle === 'top') { ev.startH = ns; }
-    else { ev.endH = ne; }
-    document.querySelectorAll('.evt.dragging').forEach(el => el.classList.remove('dragging'));
-    drag = null;
+    if (drag.type === 'move') {
+      const moved = ns !== drag.startH || ne !== drag.endH || nd !== drag.di;
+      document.querySelectorAll('.evt.dragging').forEach(el => el.classList.remove('dragging'));
+      drag = null;
+      if (moved) {
+        const msg = `Move "${ev.title}" from ${DAYS[ev.di]} ${fmt(ev.startH)}–${fmt(ev.endH)} to ${DAYS[nd]} ${fmt(ns)}–${fmt(ne)}?`;
+        const confirmed = await showConfirm(msg);
+        if (!confirmed) { renderEvents(); return; }
+      }
+      ev.startH = ns; ev.endH = ne; ev.di = nd;
+    } else {
+      if (drag.handle === 'top') { ev.startH = ns; }
+      else { ev.endH = ne; }
+      document.querySelectorAll('.evt.dragging').forEach(el => el.classList.remove('dragging'));
+      drag = null;
+    }
     renderEvents();
     showStatus('Saving…', 'saving');
     try { await updateEvent(ev); showStatus('Saved'); } catch(err) { showStatus('Save failed', 'error'); }
@@ -605,15 +665,57 @@ async function onTouchDragUp(e) {
 // ─── CREATE DRAG ──────────────────────────────────────────────────
 let createDrag = null;
 
+let holdTimer = null;
+let holdRing = null;
+
+function cancelHold() {
+  if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+  if (holdRing) { holdRing.remove(); holdRing = null; }
+  createDrag = null;
+}
+
 function onSlotDown(e) {
   if (e.button !== 0) return;
-  e.preventDefault();
+  // Don't prevent default yet — allow native scroll until hold confirmed
   const s = parseInt(e.currentTarget.dataset.s);
   const di = parseInt(e.currentTarget.dataset.di);
   const r = visRange();
-  createDrag = {di, startH: r.s + s * 0.5, endH: r.s + s * 0.5 + 0.5, startY: e.clientY};
-  document.addEventListener('mousemove', onCreateMove);
-  document.addEventListener('mouseup', onCreateUp);
+  const startH = r.s + s * 0.5;
+
+  // Show hold ring indicator
+  holdRing = document.createElement('div');
+  holdRing.className = 'hold-ring';
+  holdRing.style.left = e.clientX + 'px';
+  holdRing.style.top = e.clientY + 'px';
+  holdRing.style.position = 'fixed';
+  document.body.appendChild(holdRing);
+  requestAnimationFrame(() => holdRing && holdRing.classList.add('active'));
+
+  holdTimer = setTimeout(() => {
+    holdTimer = null;
+    if (holdRing) { holdRing.remove(); holdRing = null; }
+    // Activate create drag
+    createDrag = {di, startH, endH: startH + 1, startY: e.clientY};
+    document.addEventListener('mousemove', onCreateMove);
+    document.addEventListener('mouseup', onCreateUp);
+  }, 2000);
+
+  // Cancel hold on any movement beyond 8px
+  function onEarlyMove(ev) {
+    const dist = Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY);
+    if (dist > 8) {
+      cancelHold();
+      document.removeEventListener('mousemove', onEarlyMove);
+      document.removeEventListener('mouseup', onEarlyUp);
+    }
+  }
+  function onEarlyUp() {
+    cancelHold();
+    document.removeEventListener('mousemove', onEarlyMove);
+    document.removeEventListener('mouseup', onEarlyUp);
+  }
+  document.addEventListener('mousemove', onEarlyMove);
+  document.addEventListener('mouseup', onEarlyUp);
 }
 
 function onSlotTouch(e) {
