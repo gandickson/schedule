@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
 <title>Schedule</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
@@ -13,7 +13,9 @@
   --border:#e0dfd8;--border2:#cccbc4;
   --info-bg:#eff6ff;--info-text:#1d4ed8;
   --danger-text:#dc2626;
+  --today-bg:#fef3c7;--today-text:#92400e;--today-border:#f59e0b;
   --radius:8px;--radius-lg:12px;
+  --now-line:#ef4444;
 }
 @media(prefers-color-scheme:dark){:root{
   --bg:#1c1c1e;--bg2:#2c2c2e;--bg3:#3a3a3c;
@@ -21,13 +23,15 @@
   --border:#3a3a3c;--border2:#48484a;
   --info-bg:#1e3a5f;--info-text:#93c5fd;
   --danger-text:#f87171;
+  --today-bg:#3d2e00;--today-text:#fcd34d;--today-border:#f59e0b;
+  --now-line:#f87171;
 }}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
-#app{display:flex;flex-direction:column;flex:1;overflow:hidden}
-.toolbar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:var(--bg)}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;background:var(--bg);color:var(--text);height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+#app{display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0}
+.toolbar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:var(--bg);flex-shrink:0}
 .toolbar-title{font-size:15px;font-weight:600;color:var(--text)}
 .spacer{flex:1}
-.btn{background:transparent;border:1px solid var(--border2);border-radius:var(--radius);padding:5px 11px;cursor:pointer;font-size:12px;color:var(--text);display:inline-flex;align-items:center;gap:5px;transition:background 0.15s}
+.btn{background:transparent;border:1px solid var(--border2);border-radius:var(--radius);padding:5px 11px;cursor:pointer;font-size:12px;color:var(--text);display:inline-flex;align-items:center;gap:5px;transition:background 0.15s;-webkit-tap-highlight-color:transparent}
 .btn:hover{background:var(--bg2)}
 .btn-primary{background:var(--info-bg);color:var(--info-text);border-color:transparent;font-weight:500}
 .btn-primary:hover{opacity:0.85}
@@ -35,55 +39,77 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .status{font-size:11px;color:var(--text3);display:flex;align-items:center;gap:4px}
 .status.saving{color:var(--info-text)}
 .status.error{color:var(--danger-text)}
-.cal-outer{display:flex;flex:1;overflow:hidden}
-.grid-scroll{flex:1;overflow-y:auto;overflow-x:hidden;position:relative}
-.grid-with-gutter{display:flex}
-.time-gutter{width:54px;flex-shrink:0;background:var(--bg)}
-.time-gutter-spacer{height:40px}
-.time-tick{height:56px;display:flex;align-items:flex-start;justify-content:flex-end;padding-right:8px;font-size:10px;color:var(--text3);line-height:1}
+.cal-outer{display:flex;flex:1;overflow:hidden;min-height:0}
+.grid-scroll{flex:1;overflow-y:auto;overflow-x:auto;position:relative;-webkit-overflow-scrolling:touch}
+.grid-with-gutter{display:flex;min-width:480px}
+.time-gutter{width:54px;flex-shrink:0;background:var(--bg);position:sticky;left:0;z-index:8}
+.time-gutter-spacer{height:40px;background:var(--bg)}
+.time-tick{height:56px;display:flex;align-items:flex-start;justify-content:flex-end;padding-right:8px;font-size:10px;color:var(--text3);line-height:1;background:var(--bg)}
 .time-tick.hr{color:var(--text2);font-size:11px}
 .grid-right{flex:1;display:flex;flex-direction:column;min-width:0}
-.grid-inner{display:grid;grid-template-columns:repeat(7,1fr);position:relative}
-.day-head-row{display:grid;grid-template-columns:repeat(7,1fr);position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border)}
-.day-head{padding:8px 4px;text-align:center;border-right:1px solid var(--border);height:40px}
+.grid-inner{display:grid;grid-template-columns:repeat(7,minmax(60px,1fr));position:relative}
+.day-head-row{display:grid;grid-template-columns:repeat(7,minmax(60px,1fr));position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border)}
+.day-head{padding:8px 4px;text-align:center;border-right:1px solid var(--border);height:40px;background:var(--bg)}
 .day-head:last-child{border-right:none}
+.day-head.today{background:var(--today-bg);border-bottom:2px solid var(--today-border)}
 .dname{font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text2)}
-.dnum{font-size:16px;font-weight:500;color:var(--text)}
+.day-head.today .dname{color:var(--today-text);font-weight:600}
+.dnum{font-size:15px;font-weight:500;color:var(--text)}
+.day-head.today .dnum{color:var(--today-text);font-weight:700}
 .day-col{border-right:1px solid var(--border);position:relative}
 .day-col:last-child{border-right:none}
 .hslot{height:28px;border-bottom:1px dashed var(--border);cursor:crosshair}
 .hslot.on-hour{border-bottom-color:var(--border2);border-bottom-style:solid}
 .hslot:hover{background:var(--bg2)}
-.evt{position:absolute;border-radius:5px;padding:3px 6px;cursor:move;z-index:5;overflow:hidden;display:flex;flex-direction:column;user-select:none;transition:box-shadow 0.1s}
+.now-line{position:absolute;left:0;right:0;height:2px;background:var(--now-line);z-index:15;pointer-events:none}
+.now-line::before{content:'';position:absolute;left:-1px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--now-line)}
+.evt{position:absolute;border-radius:5px;padding:3px 6px;cursor:move;z-index:5;overflow:hidden;display:flex;flex-direction:column;user-select:none;transition:box-shadow 0.1s;-webkit-tap-highlight-color:transparent}
 .evt:hover{z-index:20;box-shadow:0 2px 10px rgba(0,0,0,0.2)}
 .evt.dragging{opacity:0.6;z-index:100}
-.evt.saving-evt{opacity:0.7}
 .evt-title{font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
 .evt-time{font-size:10px;opacity:0.8;line-height:1.2}
-.evt-edit{position:absolute;top:2px;right:2px;width:17px;height:17px;background:rgba(255,255,255,0.3);border:none;border-radius:3px;cursor:pointer;display:none;align-items:center;justify-content:center;font-size:11px;color:inherit;padding:0}
+.evt-desc{font-size:10px;opacity:0.75;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.evt-edit{position:absolute;top:2px;right:2px;width:20px;height:20px;background:rgba(255,255,255,0.3);border:none;border-radius:3px;cursor:pointer;display:none;align-items:center;justify-content:center;font-size:13px;color:inherit;padding:0}
 .evt:hover .evt-edit{display:flex}
 .evt-edit:hover{background:rgba(255,255,255,0.5)}
-.resize-bar{position:absolute;bottom:0;left:0;right:0;height:7px;cursor:s-resize}
+.resize-bar{position:absolute;bottom:0;left:0;right:0;height:8px;cursor:s-resize;touch-action:none}
 .resize-bar:hover{background:rgba(0,0,0,0.15)}
 .ghost-block{position:absolute;border-radius:5px;pointer-events:none;z-index:50;opacity:0.4;border:2px dashed rgba(0,0,0,0.3)}
-.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:200;display:flex;align-items:center;justify-content:center}
-.modal{background:var(--bg);border-radius:var(--radius-lg);border:1px solid var(--border);padding:22px;width:310px;box-shadow:0 8px 32px rgba(0,0,0,0.15)}
-.modal h3{font-size:14px;font-weight:600;margin-bottom:16px;color:var(--text)}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end;justify-content:center}
+@media(min-width:540px){.modal-bg{align-items:center}}
+.modal{background:var(--bg);border-radius:var(--radius-lg) var(--radius-lg) 0 0;border:1px solid var(--border);padding:20px;width:100%;max-width:420px;box-shadow:0 -4px 32px rgba(0,0,0,0.15);max-height:92dvh;overflow-y:auto}
+@media(min-width:540px){.modal{border-radius:var(--radius-lg);box-shadow:0 8px 32px rgba(0,0,0,0.15)}}
+.modal h3{font-size:15px;font-weight:600;margin-bottom:16px;color:var(--text)}
 .form-row{margin-bottom:13px}
-.form-row label{display:block;font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:500}
-.form-row input{width:100%;padding:7px 10px;font-size:13px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);outline:none}
-.form-row input:focus{border-color:var(--info-text)}
+.form-row label{display:block;font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:500;text-transform:uppercase;letter-spacing:0.04em}
+.form-row input,.form-row select,.form-row textarea{width:100%;padding:9px 11px;font-size:14px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);outline:none;font-family:inherit}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{border-color:var(--info-text)}
+.form-row textarea{resize:vertical;min-height:60px;line-height:1.5}
+.form-row select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px}
+.time-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .swatches{display:flex;gap:8px;flex-wrap:wrap}
-.sw{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform 0.1s}
+.sw{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform 0.1s;flex-shrink:0}
 .sw:hover{transform:scale(1.1)}
 .sw.active{border-color:var(--text);transform:scale(1.12)}
-.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;align-items:center}
-.del-btn{color:var(--danger-text);background:none;border:none;cursor:pointer;font-size:12px;margin-right:auto;display:flex;align-items:center;gap:4px;padding:4px 0}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;align-items:center;padding-top:14px;border-top:1px solid var(--border)}
+.del-btn{color:var(--danger-text);background:none;border:none;cursor:pointer;font-size:13px;margin-right:auto;display:flex;align-items:center;gap:4px;padding:6px 0}
 .del-btn:hover{opacity:0.75}
 .loading-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;z-index:300;font-size:14px;color:var(--text2)}
 .spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--info-text);border-radius:50%;animation:spin 0.7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .config-banner{background:var(--info-bg);color:var(--info-text);padding:10px 14px;font-size:12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px}
+
+/* Mobile touch improvements */
+@media(max-width:600px){
+  .toolbar{padding:8px 10px;gap:6px}
+  .toolbar-title{font-size:14px}
+  .toggle-label span{display:none}
+  .btn{padding:6px 10px;font-size:13px}
+  .evt-edit{width:24px;height:24px;font-size:15px;display:flex !important}
+  .hslot{cursor:default}
+}
 </style>
 </head>
 <body>
@@ -95,7 +121,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 <div id="configBanner" class="config-banner" style="display:none">
   <i class="ti ti-alert-circle"></i>
-  <strong>Setup needed:</strong>&nbsp;Open index.html and replace SUPABASE_URL and SUPABASE_KEY with your project credentials.
+  <strong>Setup needed:</strong>&nbsp;Replace SUPABASE_URL and SUPABASE_KEY in the file.
 </div>
 
 <div id="app">
@@ -105,7 +131,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
     <span class="status" id="statusMsg"></span>
     <label class="toggle-label">
       <input type="checkbox" id="hideOff" checked>
-      Hide off-hours
+      <span>Hide off-hours</span>
     </label>
     <button class="btn btn-primary" id="newEvtBtn"><i class="ti ti-plus"></i> New event</button>
   </div>
@@ -124,11 +150,44 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
   </div>
 </div>
 
+<!-- Modal -->
 <div id="modalBg" class="modal-bg" style="display:none">
   <div class="modal">
     <h3 id="modalHeading">New Event</h3>
-    <div class="form-row"><label>Title</label><input type="text" id="evtTitleInput" placeholder="Event title"></div>
-    <div class="form-row"><label>Color</label><div class="swatches" id="swatches"></div></div>
+    <div class="form-row">
+      <label>Title</label>
+      <input type="text" id="evtTitleInput" placeholder="Event title">
+    </div>
+    <div class="form-row">
+      <label>Day</label>
+      <select id="evtDayInput">
+        <option value="0">Sunday</option>
+        <option value="1">Monday</option>
+        <option value="2">Tuesday</option>
+        <option value="3">Wednesday</option>
+        <option value="4">Thursday</option>
+        <option value="5">Friday</option>
+        <option value="6">Saturday</option>
+      </select>
+    </div>
+    <div class="time-row">
+      <div class="form-row">
+        <label>Start time</label>
+        <select id="evtStartInput"></select>
+      </div>
+      <div class="form-row">
+        <label>End time</label>
+        <select id="evtEndInput"></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Description</label>
+      <textarea id="evtDescInput" placeholder="Optional notes…"></textarea>
+    </div>
+    <div class="form-row">
+      <label>Color</label>
+      <div class="swatches" id="swatches"></div>
+    </div>
     <div class="modal-footer">
       <button class="del-btn" id="delBtn" style="display:none"><i class="ti ti-trash"></i> Delete</button>
       <button class="btn" id="cancelBtn">Cancel</button>
@@ -160,6 +219,30 @@ let pendingEvt = null;
 const configured = SUPABASE_URL !== 'YOUR_PROJECT_URL';
 if (!configured) document.getElementById('configBanner').style.display = 'flex';
 
+// ─── BUILD TIME OPTIONS ───────────────────────────────────────────
+function buildTimeOptions() {
+  const opts = [];
+  for (let h = 0; h < 24; h++) {
+    for (let m = 0; m < 60; m += 30) {
+      const val = h + m / 60;
+      opts.push({ val, label: fmt(val) });
+    }
+  }
+  ['evtStartInput','evtEndInput'].forEach(id => {
+    const sel = document.getElementById(id);
+    opts.forEach(o => {
+      const op = document.createElement('option');
+      op.value = o.val; op.textContent = o.label;
+      sel.appendChild(op);
+    });
+  });
+  document.getElementById('evtStartInput').addEventListener('change', () => {
+    const sv = parseFloat(document.getElementById('evtStartInput').value);
+    const ev2 = parseFloat(document.getElementById('evtEndInput').value);
+    if (ev2 <= sv) document.getElementById('evtEndInput').value = sv + 0.5;
+  });
+}
+
 // ─── SUPABASE HELPERS ─────────────────────────────────────────────
 async function sbFetch(path, opts = {}) {
   const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
@@ -182,7 +265,7 @@ async function loadEvents() {
   try {
     const rows = await sbFetch('events?select=*&order=created_at.asc');
     events = rows.map(r => ({
-      id: r.id, title: r.title,
+      id: r.id, title: r.title, description: r.description || '',
       di: r.day_index, startH: r.start_h, endH: r.end_h,
       color: { bg: r.color_bg, fg: r.color_fg }
     }));
@@ -192,11 +275,10 @@ async function loadEvents() {
 async function insertEvent(ev) {
   if (!configured) return 'local-' + Date.now();
   const row = await sbFetch('events?select=id', {
-    method: 'POST',
-    prefer: 'return=representation',
+    method: 'POST', prefer: 'return=representation',
     body: JSON.stringify({
-      title: ev.title, day_index: ev.di,
-      start_h: ev.startH, end_h: ev.endH,
+      title: ev.title, description: ev.description || '',
+      day_index: ev.di, start_h: ev.startH, end_h: ev.endH,
       color_bg: ev.color.bg, color_fg: ev.color.fg
     })
   });
@@ -208,8 +290,8 @@ async function updateEvent(ev) {
   await sbFetch('events?id=eq.' + ev.id, {
     method: 'PATCH',
     body: JSON.stringify({
-      title: ev.title, day_index: ev.di,
-      start_h: ev.startH, end_h: ev.endH,
+      title: ev.title, description: ev.description || '',
+      day_index: ev.di, start_h: ev.startH, end_h: ev.endH,
       color_bg: ev.color.bg, color_fg: ev.color.fg
     })
   });
@@ -233,13 +315,14 @@ function showStatus(msg, type = '') {
 function visRange() { return hideOff ? {s:7,e:22} : {s:0,e:24}; }
 function totalSlots() { const r=visRange(); return (r.e-r.s)*2; }
 function hourToSlot(h) { return (h - visRange().s) * 2; }
-function slotToHour(s) { return visRange().s + s / 2; }
 
 function fmt(h) {
   const hh=Math.floor(h), mm=h%1===0?'00':'30';
   const ap=hh<12?'am':'pm', dh=hh===0?12:hh>12?hh-12:hh;
   return `${dh}:${mm}${ap}`;
 }
+
+function todayDayIndex() { return new Date().getDay(); }
 
 function buildGutter() {
   const g = document.getElementById('timeGutter');
@@ -257,9 +340,10 @@ function buildGutter() {
 function buildHeader() {
   const row = document.getElementById('dayHeadRow');
   row.innerHTML = '';
-  DAYS.forEach(d => {
+  const today = todayDayIndex();
+  DAYS.forEach((d, i) => {
     const el = document.createElement('div');
-    el.className = 'day-head';
+    el.className = 'day-head' + (i === today ? ' today' : '');
     el.innerHTML = `<div class="dname">${d}</div>`;
     row.appendChild(el);
   });
@@ -279,13 +363,34 @@ function buildGrid() {
       slot.className = 'hslot' + (s % 2 === 0 ? ' on-hour' : '');
       slot.dataset.s = s; slot.dataset.di = di;
       slot.addEventListener('mousedown', onSlotDown);
+      slot.addEventListener('touchstart', onSlotTouch, {passive:false});
       col.appendChild(slot);
     }
     gi.appendChild(col);
   }
   renderEvents();
+  updateNowLine();
 }
 
+// ─── NOW LINE ─────────────────────────────────────────────────────
+function updateNowLine() {
+  document.querySelectorAll('.now-line').forEach(e => e.remove());
+  const now = new Date();
+  const h = now.getHours() + now.getMinutes() / 60;
+  const r = visRange();
+  if (h < r.s || h > r.e) return;
+  const today = todayDayIndex();
+  const cols = document.getElementById('gridInner').querySelectorAll('.day-col');
+  const col = cols[today]; if (!col) return;
+  const top = hourToSlot(h) * SLOT_H;
+  const line = document.createElement('div');
+  line.className = 'now-line';
+  line.style.top = top + 'px';
+  col.appendChild(line);
+}
+setInterval(updateNowLine, 60000);
+
+// ─── OVERLAP ──────────────────────────────────────────────────────
 function overlapGroups(dayEvts) {
   const res = {};
   dayEvts.forEach(e => res[e.id] = {col:0, total:1});
@@ -328,21 +433,26 @@ function renderEvents() {
       el.className = 'evt';
       el.dataset.id = ev.id;
       el.style.cssText = `top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${pct}% - 4px);background:${ev.color.bg};color:${ev.color.fg}`;
+      const descHtml = ev.description ? `<div class="evt-desc">${ev.description}</div>` : '';
       el.innerHTML = `
         <button class="evt-edit" data-id="${ev.id}" title="Edit"><i class="ti ti-pencil"></i></button>
         <div class="evt-title">${ev.title || '(no title)'}</div>
         <div class="evt-time">${fmt(ev.startH)}–${fmt(ev.endH)}</div>
+        ${descHtml}
         <div class="resize-bar" data-id="${ev.id}"></div>
       `;
       el.addEventListener('mousedown', onEvtDown);
+      el.addEventListener('touchstart', onEvtTouch, {passive:false});
       el.querySelector('.evt-edit').addEventListener('click', e => { e.stopPropagation(); openEdit(ev.id); });
       el.querySelector('.resize-bar').addEventListener('mousedown', e => { e.stopPropagation(); onResizeDown(e, ev.id); });
+      el.querySelector('.resize-bar').addEventListener('touchstart', e => { e.stopPropagation(); onResizeTouch(e, ev.id); }, {passive:false});
       col.appendChild(el);
     });
   }
+  updateNowLine();
 }
 
-// ─── DRAG: MOVE ───────────────────────────────────────────────────
+// ─── DRAG: MOUSE MOVE ─────────────────────────────────────────────
 let drag = null;
 
 function onEvtDown(e) {
@@ -382,24 +492,29 @@ function positionGhost(di, startH, endH, color) {
   g.style.cssText = `display:block;left:${colRect.left-gridRect.left+2}px;width:${colRect.width-4}px;top:${vs*SLOT_H}px;height:${(ve-vs)*SLOT_H}px;background:${color}`;
 }
 
-function onDragMove(e) {
-  if (!drag) return;
+function calcDragResult(clientX, clientY) {
   const gi = document.getElementById('gridInner');
   const rect = gi.getBoundingClientRect();
-  const ev = events.find(x => x.id == drag.id); if (!ev) return;
+  const ev = events.find(x => x.id == drag.id);
   if (drag.type === 'move') {
-    const dh = Math.round(((e.clientY - drag.my) / SLOT_H) * 2) / 2;
+    const dh = Math.round(((clientY - drag.my) / SLOT_H) * 2) / 2;
     const dur = drag.endH - drag.startH;
     const r = visRange();
     const ns = Math.round(Math.max(r.s, Math.min(r.e - dur, drag.startH + dh)) * 2) / 2;
-    const nd = Math.max(0, Math.min(6, drag.di + Math.round((e.clientX - drag.mx) / (rect.width / 7))));
-    positionGhost(nd, ns, ns + dur, ev.color.bg);
+    const nd = Math.max(0, Math.min(6, drag.di + Math.round((clientX - drag.mx) / (rect.width / 7))));
+    return {ns, ne: ns + dur, nd, color: ev.color.bg};
   } else {
-    const dh = Math.round(((e.clientY - drag.my) / SLOT_H) * 2) / 2;
+    const dh = Math.round(((clientY - drag.my) / SLOT_H) * 2) / 2;
     const r = visRange();
     const ne = Math.round(Math.max(drag.startH + 0.5, Math.min(r.e, drag.endH + dh)) * 2) / 2;
-    positionGhost(drag.di, drag.startH, ne, ev.color.bg);
+    return {ns: drag.startH, ne, nd: drag.di, color: ev.color.bg};
   }
+}
+
+function onDragMove(e) {
+  if (!drag) return;
+  const {ns, ne, nd, color} = calcDragResult(e.clientX, e.clientY);
+  positionGhost(nd, ns, ne, color);
 }
 
 async function onDragUp(e) {
@@ -409,21 +524,10 @@ async function onDragUp(e) {
   document.removeEventListener('mouseup', onDragUp);
   if (!drag) return;
   const ev = events.find(x => x.id == drag.id);
-  const gi = document.getElementById('gridInner');
-  const rect = gi.getBoundingClientRect();
   if (ev) {
-    if (drag.type === 'move') {
-      const dh = Math.round(((e.clientY - drag.my) / SLOT_H) * 2) / 2;
-      const dur = drag.endH - drag.startH;
-      const r = visRange();
-      ev.startH = Math.round(Math.max(r.s, Math.min(r.e - dur, drag.startH + dh)) * 2) / 2;
-      ev.endH = ev.startH + dur;
-      ev.di = Math.max(0, Math.min(6, drag.di + Math.round((e.clientX - drag.mx) / (rect.width / 7))));
-    } else {
-      const dh = Math.round(((e.clientY - drag.my) / SLOT_H) * 2) / 2;
-      const r = visRange();
-      ev.endH = Math.round(Math.max(ev.startH + 0.5, Math.min(r.e, drag.endH + dh)) * 2) / 2;
-    }
+    const {ns, ne, nd} = calcDragResult(e.clientX, e.clientY);
+    if (drag.type === 'move') { ev.startH = ns; ev.endH = ne; ev.di = nd; }
+    else { ev.endH = ne; }
     document.querySelectorAll('.evt.dragging').forEach(el => el.classList.remove('dragging'));
     drag = null;
     renderEvents();
@@ -432,7 +536,55 @@ async function onDragUp(e) {
   } else { drag = null; }
 }
 
-// ─── DRAG: CREATE ─────────────────────────────────────────────────
+// ─── DRAG: TOUCH ──────────────────────────────────────────────────
+function onEvtTouch(e) {
+  if (e.target.closest('.evt-edit') || e.target.closest('.resize-bar')) return;
+  const t = e.touches[0];
+  const id = e.currentTarget.dataset.id;
+  const ev = events.find(x => x.id == id); if (!ev) return;
+  drag = {type:'move', id:ev.id, startH:ev.startH, endH:ev.endH, di:ev.di, mx:t.clientX, my:t.clientY};
+  e.currentTarget.classList.add('dragging');
+  document.addEventListener('touchmove', onTouchDragMove, {passive:false});
+  document.addEventListener('touchend', onTouchDragUp);
+}
+
+function onResizeTouch(e, id) {
+  const t = e.touches[0];
+  const ev = events.find(x => x.id == id); if (!ev) return;
+  drag = {type:'resize', id:ev.id, startH:ev.startH, endH:ev.endH, di:ev.di, my:t.clientY};
+  document.addEventListener('touchmove', onTouchDragMove, {passive:false});
+  document.addEventListener('touchend', onTouchDragUp);
+}
+
+function onTouchDragMove(e) {
+  e.preventDefault();
+  if (!drag) return;
+  const t = e.touches[0];
+  const {ns, ne, nd, color} = calcDragResult(t.clientX, t.clientY);
+  positionGhost(nd, ns, ne, color);
+}
+
+async function onTouchDragUp(e) {
+  const g = document.getElementById('ghostBlock');
+  if (g) g.style.display = 'none';
+  document.removeEventListener('touchmove', onTouchDragMove);
+  document.removeEventListener('touchend', onTouchDragUp);
+  if (!drag) return;
+  const t = e.changedTouches[0];
+  const ev = events.find(x => x.id == drag.id);
+  if (ev) {
+    const {ns, ne, nd} = calcDragResult(t.clientX, t.clientY);
+    if (drag.type === 'move') { ev.startH = ns; ev.endH = ne; ev.di = nd; }
+    else { ev.endH = ne; }
+    document.querySelectorAll('.evt.dragging').forEach(el => el.classList.remove('dragging'));
+    drag = null;
+    renderEvents();
+    showStatus('Saving…', 'saving');
+    try { await updateEvent(ev); showStatus('Saved'); } catch(err) { showStatus('Save failed', 'error'); }
+  } else { drag = null; }
+}
+
+// ─── CREATE DRAG ──────────────────────────────────────────────────
 let createDrag = null;
 
 function onSlotDown(e) {
@@ -441,38 +593,80 @@ function onSlotDown(e) {
   const s = parseInt(e.currentTarget.dataset.s);
   const di = parseInt(e.currentTarget.dataset.di);
   const r = visRange();
-  const sh = r.s + s * 0.5;
-  createDrag = {di, startH: sh, endH: sh + 0.5};
+  createDrag = {di, startH: r.s + s * 0.5, endH: r.s + s * 0.5 + 0.5};
   document.addEventListener('mousemove', onCreateMove);
   document.addEventListener('mouseup', onCreateUp);
 }
 
-function onCreateMove(e) {
-  if (!createDrag) return;
+function onSlotTouch(e) {
+  e.preventDefault();
+  const t = e.touches[0];
+  const s = parseInt(e.currentTarget.dataset.s);
+  const di = parseInt(e.currentTarget.dataset.di);
+  const r = visRange();
+  createDrag = {di, startH: r.s + s * 0.5, endH: r.s + s * 0.5 + 0.5, startY: t.clientY};
+  document.addEventListener('touchmove', onCreateTouchMove, {passive:false});
+  document.addEventListener('touchend', onCreateTouchUp);
+}
+
+function slotFromClientY(clientY) {
   const gi = document.getElementById('gridInner');
   const rect = gi.getBoundingClientRect();
   const scrollTop = document.getElementById('gridScroll').scrollTop;
-  const slot = Math.floor((e.clientY - rect.top + scrollTop) / SLOT_H);
+  return Math.floor((clientY - rect.top + scrollTop) / SLOT_H);
+}
+
+function onCreateMove(e) {
+  if (!createDrag) return;
+  const slot = slotFromClientY(e.clientY);
   const r = visRange();
   createDrag.endH = Math.round(Math.max(createDrag.startH + 0.5, Math.min(r.e, r.s + slot * 0.5 + 0.5)) * 2) / 2;
   positionGhost(createDrag.di, createDrag.startH, createDrag.endH, '#3B82F6');
 }
 
-function onCreateUp() {
+function onCreateTouchMove(e) {
+  e.preventDefault();
+  if (!createDrag) return;
+  const t = e.touches[0];
+  const slot = slotFromClientY(t.clientY);
+  const r = visRange();
+  createDrag.endH = Math.round(Math.max(createDrag.startH + 0.5, Math.min(r.e, r.s + slot * 0.5 + 0.5)) * 2) / 2;
+  positionGhost(createDrag.di, createDrag.startH, createDrag.endH, '#3B82F6');
+}
+
+function finishCreate() {
   const g = document.getElementById('ghostBlock');
   if (g) g.style.display = 'none';
-  document.removeEventListener('mousemove', onCreateMove);
-  document.removeEventListener('mouseup', onCreateUp);
   if (!createDrag) return;
   pendingEvt = {di: createDrag.di, startH: createDrag.startH, endH: createDrag.endH};
   createDrag = null;
   openNew();
 }
 
+function onCreateUp() {
+  document.removeEventListener('mousemove', onCreateMove);
+  document.removeEventListener('mouseup', onCreateUp);
+  finishCreate();
+}
+
+function onCreateTouchUp() {
+  document.removeEventListener('touchmove', onCreateTouchMove);
+  document.removeEventListener('touchend', onCreateTouchUp);
+  finishCreate();
+}
+
 // ─── MODAL ────────────────────────────────────────────────────────
+function setModalTimes(startH, endH) {
+  document.getElementById('evtStartInput').value = startH;
+  document.getElementById('evtEndInput').value = endH;
+}
+
 function openNew() {
   editId = null;
   document.getElementById('evtTitleInput').value = '';
+  document.getElementById('evtDescInput').value = '';
+  document.getElementById('evtDayInput').value = pendingEvt ? pendingEvt.di : 1;
+  setModalTimes(pendingEvt ? pendingEvt.startH : 9, pendingEvt ? pendingEvt.endH : 10);
   document.getElementById('modalHeading').textContent = 'New Event';
   document.getElementById('delBtn').style.display = 'none';
   selColor = COLORS[0];
@@ -485,6 +679,9 @@ function openEdit(id) {
   editId = id;
   const ev = events.find(x => x.id == id); if (!ev) return;
   document.getElementById('evtTitleInput').value = ev.title;
+  document.getElementById('evtDescInput').value = ev.description || '';
+  document.getElementById('evtDayInput').value = ev.di;
+  setModalTimes(ev.startH, ev.endH);
   document.getElementById('modalHeading').textContent = 'Edit Event';
   document.getElementById('delBtn').style.display = 'flex';
   selColor = ev.color;
@@ -505,17 +702,28 @@ function buildSwatches() {
   });
 }
 
+function readModal() {
+  return {
+    title: document.getElementById('evtTitleInput').value.trim() || '(no title)',
+    description: document.getElementById('evtDescInput').value.trim(),
+    di: parseInt(document.getElementById('evtDayInput').value),
+    startH: parseFloat(document.getElementById('evtStartInput').value),
+    endH: parseFloat(document.getElementById('evtEndInput').value),
+  };
+}
+
 document.getElementById('saveBtn').addEventListener('click', async () => {
-  const title = document.getElementById('evtTitleInput').value.trim() || '(no title)';
+  const data = readModal();
+  if (data.endH <= data.startH) { alert('End time must be after start time.'); return; }
   document.getElementById('modalBg').style.display = 'none';
   if (editId !== null) {
     const ev = events.find(x => x.id == editId);
-    if (ev) { ev.title = title; ev.color = selColor; }
+    if (ev) { Object.assign(ev, data, {color: selColor}); }
     renderEvents();
     showStatus('Saving…', 'saving');
     try { await updateEvent(ev); showStatus('Saved'); } catch(err) { showStatus('Save failed', 'error'); }
-  } else if (pendingEvt) {
-    const newEv = {id: 'tmp-' + Date.now(), title, color: selColor, ...pendingEvt};
+  } else {
+    const newEv = {id: 'tmp-' + Date.now(), color: selColor, ...data};
     events.push(newEv);
     pendingEvt = null;
     renderEvents();
@@ -546,10 +754,6 @@ document.getElementById('modalBg').addEventListener('mousedown', e => {
   }
 });
 
-document.getElementById('evtTitleInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('saveBtn').click();
-});
-
 document.getElementById('newEvtBtn').addEventListener('click', () => {
   pendingEvt = {di: 1, startH: 9, endH: 10};
   openNew();
@@ -563,12 +767,17 @@ document.getElementById('hideOff').addEventListener('change', e => {
 
 // ─── INIT ─────────────────────────────────────────────────────────
 async function init() {
+  buildTimeOptions();
   buildGutter();
   buildHeader();
   buildGrid();
   await loadEvents();
   renderEvents();
   document.getElementById('loadingOverlay').style.display = 'none';
+  // scroll to 8am on load
+  const r = visRange();
+  const scrollTo = (8 - r.s) * 2 * SLOT_H + 40;
+  document.getElementById('gridScroll').scrollTop = Math.max(0, scrollTo);
 }
 
 init();
