@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<title>Schedule v1.03</title>
+<title>Schedule v1.04</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -31,6 +31,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .toolbar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:var(--bg);flex-shrink:0}
 .toolbar-title{font-size:15px;font-weight:600;color:var(--text)}
 .spacer{flex:1}
+.schedule-sel{padding:5px 28px 5px 10px;font-size:13px;font-weight:500;border:1px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;background-color:var(--bg2);outline:none;max-width:180px}
+.schedule-sel:focus{border-color:var(--info-text)}
 .btn{background:transparent;border:1px solid var(--border2);border-radius:var(--radius);padding:5px 11px;cursor:pointer;font-size:12px;color:var(--text);display:inline-flex;align-items:center;gap:5px;transition:background 0.15s;-webkit-tap-highlight-color:transparent}
 .btn:hover{background:var(--bg2)}
 .btn-primary{background:var(--info-bg);color:var(--info-text);border-color:transparent;font-weight:500}
@@ -134,7 +136,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 <div id="app">
   <div class="toolbar">
-    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.03</span></span>
+    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.04</span></span>
+    <select class="schedule-sel" id="scheduleSel"></select>
+    <button class="btn" id="manageSchBtn" title="Manage schedules"><i class="ti ti-settings"></i></button>
     <div class="spacer"></div>
     <span class="status" id="statusMsg"></span>
     <button class="btn" id="undoBtn" style="display:none"><i class="ti ti-arrow-back-up"></i> Undo</button>
@@ -155,6 +159,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
           <div class="grid-inner" id="gridInner"></div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Manage Schedules Modal -->
+<div id="schModalBg" class="modal-bg" style="display:none">
+  <div class="modal" style="max-width:340px">
+    <h3>Manage Schedules</h3>
+    <div class="form-row">
+      <label>New schedule name</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="newSchInput" placeholder="e.g. Yoga Classes" style="flex:1">
+        <button class="btn btn-primary" id="addSchBtn"><i class="ti ti-plus"></i> Add</button>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Existing schedules</label>
+      <div id="schList" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto"></div>
+    </div>
+    <div class="modal-footer">
+      <div class="spacer"></div>
+      <button class="btn" id="schModalClose">Close</button>
     </div>
   </div>
 </div>
@@ -236,6 +262,8 @@ let selColor = COLORS[0];
 let editId = null;
 let pendingEvt = null;
 let undoStack = []; // each entry: {type, snapshot, dbOp}
+let schedules = ['Default'];
+let currentSchedule = 'Default';
 
 const configured = SUPABASE_URL !== 'YOUR_PROJECT_URL';
 if (!configured) document.getElementById('configBanner').style.display = 'flex';
@@ -282,7 +310,15 @@ async function sbFetch(path, opts = {}) {
 async function loadEvents() {
   if (!configured) return;
   try {
-    const rows = await sbFetch('events?select=*&order=created_at.asc');
+    // Load all distinct schedule names
+    const allRows = await sbFetch('events?select=schedule_name');
+    const names = [...new Set(allRows.map(r => r.schedule_name).filter(Boolean))];
+    if (names.length) {
+      schedules = [...new Set(['Default', ...names])];
+    }
+    renderScheduleSelector();
+    // Load events for current schedule
+    const rows = await sbFetch('events?select=*&schedule_name=eq.' + encodeURIComponent(currentSchedule) + '&order=created_at.asc');
     events = rows.map(r => ({
       id: r.id, title: r.title, description: r.description || '',
       di: r.day_index, startH: r.start_h, endH: r.end_h,
@@ -291,6 +327,105 @@ async function loadEvents() {
   } catch(e) { showStatus('Failed to load: ' + e.message, 'error'); }
 }
 
+async function switchSchedule(name) {
+  currentSchedule = name;
+  events = [];
+  undoStack = [];
+  document.getElementById('undoBtn').style.display = 'none';
+  renderEvents();
+  showStatus('Loading…', 'saving');
+  await loadEvents();
+  renderEvents();
+  showStatus('');
+}
+
+function renderScheduleSelector() {
+  const sel = document.getElementById('scheduleSel');
+  sel.innerHTML = '';
+  schedules.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s; o.textContent = s;
+    if (s === currentSchedule) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+function renderSchList() {
+  const list = document.getElementById('schList');
+  list.innerHTML = '';
+  schedules.forEach(s => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg2)';
+    const name = document.createElement('span');
+    name.textContent = s;
+    name.style.flex = '1';
+    const del = document.createElement('button');
+    del.className = 'btn';
+    del.style.cssText = 'padding:3px 7px;font-size:11px;color:var(--danger-text)';
+    del.innerHTML = '<i class="ti ti-trash"></i>';
+    del.title = 'Delete schedule';
+    del.disabled = s === 'Default';
+    del.style.opacity = s === 'Default' ? '0.3' : '1';
+    del.addEventListener('click', async () => {
+      if (s === 'Default') return;
+      if (!confirm(`Delete schedule "${s}" and all its events? This cannot be undone.`)) return;
+      showStatus('Deleting…', 'saving');
+      try {
+        await sbFetch('events?schedule_name=eq.' + encodeURIComponent(s), {method:'DELETE'});
+        schedules = schedules.filter(x => x !== s);
+        if (currentSchedule === s) {
+          currentSchedule = 'Default';
+          await switchSchedule('Default');
+        }
+        renderScheduleSelector();
+        renderSchList();
+        showStatus('Deleted');
+      } catch(e) { showStatus('Delete failed', 'error'); }
+    });
+    row.appendChild(name);
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('scheduleSel').addEventListener('change', e => {
+  switchSchedule(e.target.value);
+});
+
+document.getElementById('manageSchBtn').addEventListener('click', () => {
+  renderSchList();
+  document.getElementById('schModalBg').style.display = 'flex';
+});
+
+document.getElementById('schModalClose').addEventListener('click', () => {
+  document.getElementById('schModalBg').style.display = 'none';
+});
+
+document.getElementById('addSchBtn').addEventListener('click', () => {
+  const name = document.getElementById('newSchInput').value.trim();
+  if (!name) return;
+  if (schedules.includes(name)) { alert('Schedule already exists.'); return; }
+  schedules.push(name);
+  document.getElementById('newSchInput').value = '';
+  currentSchedule = name;
+  events = [];
+  undoStack = [];
+  document.getElementById('undoBtn').style.display = 'none';
+  renderScheduleSelector();
+  renderSchList();
+  renderEvents();
+  showStatus('Schedule created');
+});
+
+document.getElementById('newSchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('addSchBtn').click();
+});
+
+document.getElementById('schModalBg').addEventListener('mousedown', e => {
+  if (e.target === document.getElementById('schModalBg'))
+    document.getElementById('schModalBg').style.display = 'none';
+});
+
 async function insertEvent(ev) {
   if (!configured) return 'local-' + Date.now();
   const row = await sbFetch('events?select=id', {
@@ -298,7 +433,8 @@ async function insertEvent(ev) {
     body: JSON.stringify({
       title: ev.title, description: ev.description || '',
       day_index: ev.di, start_h: ev.startH, end_h: ev.endH,
-      color_bg: ev.color.bg, color_fg: ev.color.fg
+      color_bg: ev.color.bg, color_fg: ev.color.fg,
+      schedule_name: currentSchedule
     })
   });
   return row[0].id;
@@ -311,7 +447,8 @@ async function updateEvent(ev) {
     body: JSON.stringify({
       title: ev.title, description: ev.description || '',
       day_index: ev.di, start_h: ev.startH, end_h: ev.endH,
-      color_bg: ev.color.bg, color_fg: ev.color.fg
+      color_bg: ev.color.bg, color_fg: ev.color.fg,
+      schedule_name: currentSchedule
     })
   });
 }
