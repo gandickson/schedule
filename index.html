@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<title>Schedule v1.06</title>
+<title>Schedule v1.07</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -137,13 +137,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 <div id="app">
   <div class="toolbar">
-    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.06</span></span>
+    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.07</span></span>
     <select class="schedule-sel" id="scheduleSel"></select>
     <button class="btn" id="manageSchBtn" title="Manage schedules"><i class="ti ti-settings"></i></button>
     <div style="display:flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg2)">
       <input type="checkbox" id="overlayChk" style="cursor:pointer">
       <label for="overlayChk" style="font-size:12px;color:var(--text2);cursor:pointer;white-space:nowrap">Overlay:</label>
-      <select class="schedule-sel" id="overlaySel" style="max-width:140px;opacity:0.5;pointer-events:none;border:none;background:transparent;padding:2px 20px 2px 4px"></select>
+      <select class="schedule-sel" id="overlaySel" style="max-width:140px;opacity:0.5;pointer-events:none"></select>
     </div>
     <div class="spacer"></div>
     <span class="status" id="statusMsg"></span>
