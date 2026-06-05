@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<title>Schedule v1.07</title>
+<title>Schedule v1.09</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -65,7 +65,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .hslot:hover{background:var(--bg2)}
 .now-line{position:absolute;left:0;right:0;height:2px;background:var(--now-line);z-index:15;pointer-events:none}
 .now-line::before{content:'';position:absolute;left:-1px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--now-line)}
-.evt.overlay-evt{opacity:0.35;pointer-events:none;filter:saturate(0.7)}
+.evt.overlay-evt{pointer-events:none;filter:saturate(0.7)}
+.overlay-slider{-webkit-appearance:none;appearance:none;width:72px;height:4px;border-radius:2px;background:var(--border2);outline:none;cursor:pointer}
+.overlay-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:var(--info-text);cursor:pointer}
+.overlay-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--info-text);cursor:pointer;border:none}
 .evt{position:absolute;border-radius:5px;padding:3px 6px;cursor:move;z-index:5;overflow:hidden;display:flex;flex-direction:column;user-select:none;transition:box-shadow 0.1s;-webkit-tap-highlight-color:transparent}
 .evt:hover{z-index:20;box-shadow:0 2px 10px rgba(0,0,0,0.2)}
 .evt.dragging{opacity:0.6;z-index:100}
@@ -137,17 +140,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 <div id="app">
   <div class="toolbar">
-    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.07</span></span>
+    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.09</span></span>
     <select class="schedule-sel" id="scheduleSel"></select>
     <button class="btn" id="manageSchBtn" title="Manage schedules"><i class="ti ti-settings"></i></button>
     <div style="display:flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg2)">
       <input type="checkbox" id="overlayChk" style="cursor:pointer">
       <label for="overlayChk" style="font-size:12px;color:var(--text2);cursor:pointer;white-space:nowrap">Overlay:</label>
       <select class="schedule-sel" id="overlaySel" style="max-width:140px;opacity:0.5;pointer-events:none"></select>
+      <input type="range" id="overlayOpacity" class="overlay-slider" min="10" max="90" value="35" style="opacity:0.4;pointer-events:none">
+      <span id="overlayOpacityLabel" style="font-size:11px;color:var(--text3);min-width:28px">35%</span>
     </div>
     <div class="spacer"></div>
     <span class="status" id="statusMsg"></span>
     <button class="btn" id="undoBtn" style="display:none"><i class="ti ti-arrow-back-up"></i> Undo</button>
+    <button class="btn" id="exportBtn" title="Export current schedule as CSV"><i class="ti ti-download"></i> Export</button>
     <label class="toggle-label">
       <input type="checkbox" id="hideOff" checked>
       <span>Hide off-hours</span>
@@ -281,6 +287,7 @@ let currentSchedule = 'Default';
 let overlayEnabled = false;
 let overlaySchedule = '';
 let overlayEvents = [];
+let overlayOpacity = 0.35;
 
 const configured = SUPABASE_URL !== 'YOUR_PROJECT_URL';
 if (!configured) document.getElementById('configBanner').style.display = 'flex';
@@ -488,8 +495,13 @@ document.getElementById('dupTargetInput').addEventListener('keydown', e => {
 document.getElementById('overlayChk').addEventListener('change', async e => {
   overlayEnabled = e.target.checked;
   const sel = document.getElementById('overlaySel');
+  const slider = document.getElementById('overlayOpacity');
+  const lbl = document.getElementById('overlayOpacityLabel');
   sel.style.opacity = overlayEnabled ? '1' : '0.5';
   sel.style.pointerEvents = overlayEnabled ? 'auto' : 'none';
+  slider.style.opacity = overlayEnabled ? '1' : '0.4';
+  slider.style.pointerEvents = overlayEnabled ? 'auto' : 'none';
+  lbl.style.opacity = overlayEnabled ? '1' : '0.4';
   if (overlayEnabled) {
     if (!overlaySchedule) {
       // default to first schedule that isn't current
@@ -761,6 +773,7 @@ function renderEvents() {
       const h = Math.max(SLOT_H, (ve - vs) * SLOT_H);
       const el = document.createElement('div');
       el.className = 'evt' + (ev.isOverlay ? ' overlay-evt' : '');
+      if (ev.isOverlay) el.style.opacity = overlayOpacity;
       el.dataset.id = ev.id;
       el.style.cssText = `top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${pct}% - 4px);background:${ev.color.bg};color:${ev.color.fg}`;
       const descHtml = ev.description ? `<div class="evt-desc">${ev.description}</div>` : '';
@@ -1214,6 +1227,42 @@ function posTooltip(x, y) {
 function hideTooltip() {
   tooltip.style.display = 'none';
 }
+
+// ─── OVERLAY OPACITY ──────────────────────────────────────────────
+document.getElementById('overlayOpacity').addEventListener('input', e => {
+  overlayOpacity = parseInt(e.target.value) / 100;
+  document.getElementById('overlayOpacityLabel').textContent = e.target.value + '%';
+  // Update all overlay events opacity live
+  document.querySelectorAll('.evt.overlay-evt').forEach(el => {
+    el.style.opacity = overlayOpacity;
+  });
+});
+
+// ─── EXPORT ───────────────────────────────────────────────────────
+function exportCSV() {
+  if (!events.length) { showStatus('Nothing to export', 'error'); return; }
+  const DAYS_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const headers = ['Title','Description','Day','Start Time','End Time','Color'];
+  const rows = events.map(ev => [
+    `"${(ev.title||'').replace(/"/g,'""')}"`,
+    `"${(ev.description||'').replace(/"/g,'""')}"`,
+    DAYS_FULL[ev.di],
+    fmt(ev.startH),
+    fmt(ev.endH),
+    ev.color.bg
+  ]);
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `schedule-${currentSchedule.replace(/[^a-z0-9]/gi,'-')}-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showStatus(`Exported ${events.length} events`);
+}
+
+document.getElementById('exportBtn').addEventListener('click', exportCSV);
 
 // ─── INIT ─────────────────────────────────────────────────────────
 async function init() {
