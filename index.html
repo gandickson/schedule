@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<title>Schedule v1.04</title>
+<title>Schedule v1.05</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -136,7 +136,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 <div id="app">
   <div class="toolbar">
-    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.04</span></span>
+    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.05</span></span>
     <select class="schedule-sel" id="scheduleSel"></select>
     <button class="btn" id="manageSchBtn" title="Manage schedules"><i class="ti ti-settings"></i></button>
     <div class="spacer"></div>
@@ -177,6 +177,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
     <div class="form-row">
       <label>Existing schedules</label>
       <div id="schList" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto"></div>
+    </div>
+    <div class="form-row" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <label>Duplicate a schedule</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select id="dupSourceSel" class="schedule-sel" style="flex:1;max-width:none"></select>
+        <input type="text" id="dupTargetInput" placeholder="New schedule name" style="flex:1;padding:7px 10px;font-size:13px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text)">
+        <button class="btn btn-primary" id="dupSchBtn"><i class="ti ti-copy"></i> Copy</button>
+      </div>
     </div>
     <div class="modal-footer">
       <div class="spacer"></div>
@@ -388,12 +396,63 @@ function renderSchList() {
   });
 }
 
+async function duplicateSchedule(sourceName, targetName) {
+  if (!targetName) { alert('Please enter a name for the new schedule.'); return; }
+  if (schedules.includes(targetName)) { alert(`Schedule "${targetName}" already exists.`); return; }
+  showStatus('Copying…', 'saving');
+  try {
+    // Fetch all events from source
+    const rows = await sbFetch('events?select=*&schedule_name=eq.' + encodeURIComponent(sourceName));
+    if (!rows.length) { showStatus('Source schedule is empty'); return; }
+    // Insert each event under new schedule name
+    for (const r of rows) {
+      await sbFetch('events', {
+        method: 'POST',
+        prefer: 'return=minimal',
+        body: JSON.stringify({
+          title: r.title, description: r.description || '',
+          day_index: r.day_index, start_h: r.start_h, end_h: r.end_h,
+          color_bg: r.color_bg, color_fg: r.color_fg,
+          schedule_name: targetName
+        })
+      });
+    }
+    schedules.push(targetName);
+    renderScheduleSelector();
+    renderSchList();
+    document.getElementById('dupTargetInput').value = '';
+    showStatus(`Copied ${rows.length} events to "${targetName}"`);
+  } catch(e) { showStatus('Copy failed: ' + e.message, 'error'); }
+}
+
+function renderDupSourceSel() {
+  const sel = document.getElementById('dupSourceSel');
+  sel.innerHTML = '';
+  schedules.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s; o.textContent = s;
+    if (s === currentSchedule) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+document.getElementById('dupSchBtn').addEventListener('click', () => {
+  const source = document.getElementById('dupSourceSel').value;
+  const target = document.getElementById('dupTargetInput').value.trim();
+  duplicateSchedule(source, target);
+});
+
+document.getElementById('dupTargetInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('dupSchBtn').click();
+});
+
 document.getElementById('scheduleSel').addEventListener('change', e => {
   switchSchedule(e.target.value);
 });
 
 document.getElementById('manageSchBtn').addEventListener('click', () => {
   renderSchList();
+  renderDupSourceSel();
   document.getElementById('schModalBg').style.display = 'flex';
 });
 
