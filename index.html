@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<title>Schedule v1.05</title>
+<title>Schedule v1.06</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -65,6 +65,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .hslot:hover{background:var(--bg2)}
 .now-line{position:absolute;left:0;right:0;height:2px;background:var(--now-line);z-index:15;pointer-events:none}
 .now-line::before{content:'';position:absolute;left:-1px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--now-line)}
+.evt.overlay-evt{opacity:0.35;pointer-events:none;filter:saturate(0.7)}
 .evt{position:absolute;border-radius:5px;padding:3px 6px;cursor:move;z-index:5;overflow:hidden;display:flex;flex-direction:column;user-select:none;transition:box-shadow 0.1s;-webkit-tap-highlight-color:transparent}
 .evt:hover{z-index:20;box-shadow:0 2px 10px rgba(0,0,0,0.2)}
 .evt.dragging{opacity:0.6;z-index:100}
@@ -136,9 +137,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 <div id="app">
   <div class="toolbar">
-    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.05</span></span>
+    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.06</span></span>
     <select class="schedule-sel" id="scheduleSel"></select>
     <button class="btn" id="manageSchBtn" title="Manage schedules"><i class="ti ti-settings"></i></button>
+    <div style="display:flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg2)">
+      <input type="checkbox" id="overlayChk" style="cursor:pointer">
+      <label for="overlayChk" style="font-size:12px;color:var(--text2);cursor:pointer;white-space:nowrap">Overlay:</label>
+      <select class="schedule-sel" id="overlaySel" style="max-width:140px;opacity:0.5;pointer-events:none;border:none;background:transparent;padding:2px 20px 2px 4px"></select>
+    </div>
     <div class="spacer"></div>
     <span class="status" id="statusMsg"></span>
     <button class="btn" id="undoBtn" style="display:none"><i class="ti ti-arrow-back-up"></i> Undo</button>
@@ -272,6 +278,9 @@ let pendingEvt = null;
 let undoStack = []; // each entry: {type, snapshot, dbOp}
 let schedules = ['Default'];
 let currentSchedule = 'Default';
+let overlayEnabled = false;
+let overlaySchedule = '';
+let overlayEvents = [];
 
 const configured = SUPABASE_URL !== 'YOUR_PROJECT_URL';
 if (!configured) document.getElementById('configBanner').style.display = 'flex';
@@ -338,13 +347,31 @@ async function loadEvents() {
 async function switchSchedule(name) {
   currentSchedule = name;
   events = [];
+  overlayEvents = [];
   undoStack = [];
   document.getElementById('undoBtn').style.display = 'none';
   renderEvents();
   showStatus('Loading…', 'saving');
   await loadEvents();
+  if (overlayEnabled) await loadOverlayEvents();
   renderEvents();
   showStatus('');
+}
+
+async function loadOverlayEvents() {
+  if (!overlayEnabled || !overlaySchedule || overlaySchedule === currentSchedule) {
+    overlayEvents = [];
+    return;
+  }
+  try {
+    const rows = await sbFetch('events?select=*&schedule_name=eq.' + encodeURIComponent(overlaySchedule) + '&order=created_at.asc');
+    overlayEvents = rows.map(r => ({
+      id: 'ov-' + r.id, title: r.title, description: r.description || '',
+      di: r.day_index, startH: r.start_h, endH: r.end_h,
+      color: { bg: r.color_bg, fg: r.color_fg },
+      isOverlay: true
+    }));
+  } catch(e) { overlayEvents = []; }
 }
 
 function renderScheduleSelector() {
@@ -356,6 +383,7 @@ function renderScheduleSelector() {
     if (s === currentSchedule) o.selected = true;
     sel.appendChild(o);
   });
+  renderOverlaySel();
 }
 
 function renderSchList() {
@@ -425,6 +453,17 @@ async function duplicateSchedule(sourceName, targetName) {
   } catch(e) { showStatus('Copy failed: ' + e.message, 'error'); }
 }
 
+function renderOverlaySel() {
+  const sel = document.getElementById('overlaySel');
+  sel.innerHTML = '';
+  schedules.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s; o.textContent = s;
+    if (s === overlaySchedule) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
 function renderDupSourceSel() {
   const sel = document.getElementById('dupSourceSel');
   sel.innerHTML = '';
@@ -444,6 +483,36 @@ document.getElementById('dupSchBtn').addEventListener('click', () => {
 
 document.getElementById('dupTargetInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('dupSchBtn').click();
+});
+
+document.getElementById('overlayChk').addEventListener('change', async e => {
+  overlayEnabled = e.target.checked;
+  const sel = document.getElementById('overlaySel');
+  sel.style.opacity = overlayEnabled ? '1' : '0.5';
+  sel.style.pointerEvents = overlayEnabled ? 'auto' : 'none';
+  if (overlayEnabled) {
+    if (!overlaySchedule) {
+      // default to first schedule that isn't current
+      overlaySchedule = schedules.find(s => s !== currentSchedule) || '';
+      renderOverlaySel();
+    }
+    showStatus('Loading overlay…', 'saving');
+    await loadOverlayEvents();
+    showStatus('');
+  } else {
+    overlayEvents = [];
+  }
+  renderEvents();
+});
+
+document.getElementById('overlaySel').addEventListener('change', async e => {
+  overlaySchedule = e.target.value;
+  if (overlayEnabled) {
+    showStatus('Loading overlay…', 'saving');
+    await loadOverlayEvents();
+    showStatus('');
+    renderEvents();
+  }
 });
 
 document.getElementById('scheduleSel').addEventListener('change', e => {
@@ -677,7 +746,10 @@ function renderEvents() {
   for (let di = 0; di < 7; di++) {
     const col = cols[di]; if (!col) continue;
     const r = visRange();
-    const dayEvts = events.filter(e => e.di === di && e.endH > r.s && e.startH < r.e);
+    // Combine main + overlay events for overlap calculation, but render separately
+    const mainEvts = events.filter(e => e.di === di && e.endH > r.s && e.startH < r.e);
+    const ovEvts = overlayEnabled ? overlayEvents.filter(e => e.di === di && e.endH > r.s && e.startH < r.e) : [];
+    const dayEvts = [...mainEvts, ...ovEvts];
     const groups = overlapGroups(dayEvts);
     dayEvts.forEach(ev => {
       const g = groups[ev.id] || {col:0, total:1};
@@ -688,7 +760,7 @@ function renderEvents() {
       const top = vs * SLOT_H;
       const h = Math.max(SLOT_H, (ve - vs) * SLOT_H);
       const el = document.createElement('div');
-      el.className = 'evt';
+      el.className = 'evt' + (ev.isOverlay ? ' overlay-evt' : '');
       el.dataset.id = ev.id;
       el.style.cssText = `top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${pct}% - 4px);background:${ev.color.bg};color:${ev.color.fg}`;
       const descHtml = ev.description ? `<div class="evt-desc">${ev.description}</div>` : '';
@@ -1150,6 +1222,7 @@ async function init() {
   buildHeader();
   buildGrid();
   await loadEvents();
+  renderOverlaySel();
   renderEvents();
   document.getElementById('loadingOverlay').style.display = 'none';
   // scroll to 8am on load
