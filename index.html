@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<title>Schedule v1.09</title>
+<title>Schedule v1.10</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -140,7 +140,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 <div id="app">
   <div class="toolbar">
-    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.09</span></span>
+    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.10</span></span>
     <select class="schedule-sel" id="scheduleSel"></select>
     <button class="btn" id="manageSchBtn" title="Manage schedules"><i class="ti ti-settings"></i></button>
     <div style="display:flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg2)">
@@ -287,7 +287,6 @@ let currentSchedule = 'Default';
 let overlayEnabled = false;
 let overlaySchedule = '';
 let overlayEvents = [];
-let overlayOpacity = 0.35;
 
 const configured = SUPABASE_URL !== 'YOUR_PROJECT_URL';
 if (!configured) document.getElementById('configBanner').style.display = 'flex';
@@ -773,7 +772,7 @@ function renderEvents() {
       const h = Math.max(SLOT_H, (ve - vs) * SLOT_H);
       const el = document.createElement('div');
       el.className = 'evt' + (ev.isOverlay ? ' overlay-evt' : '');
-      if (ev.isOverlay) el.style.opacity = overlayOpacity;
+      if (ev.isOverlay) el.style.opacity = (document.getElementById('overlayOpacity').value / 100);
       el.dataset.id = ev.id;
       el.style.cssText = `top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${pct}% - 4px);background:${ev.color.bg};color:${ev.color.fg}`;
       const descHtml = ev.description ? `<div class="evt-desc">${ev.description}</div>` : '';
@@ -1230,39 +1229,90 @@ function hideTooltip() {
 
 // ─── OVERLAY OPACITY ──────────────────────────────────────────────
 document.getElementById('overlayOpacity').addEventListener('input', e => {
-  overlayOpacity = parseInt(e.target.value) / 100;
   document.getElementById('overlayOpacityLabel').textContent = e.target.value + '%';
-  // Update all overlay events opacity live
   document.querySelectorAll('.evt.overlay-evt').forEach(el => {
-    el.style.opacity = overlayOpacity;
+    el.style.opacity = e.target.value / 100;
   });
 });
 
 // ─── EXPORT ───────────────────────────────────────────────────────
-function exportCSV() {
-  if (!events.length) { showStatus('Nothing to export', 'error'); return; }
-  const DAYS_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const headers = ['Title','Description','Day','Start Time','End Time','Color'];
-  const rows = events.map(ev => [
+const DAYS_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+function eventsToCSVRows(evtList, schedName) {
+  return evtList.map(ev => [
     `"${(ev.title||'').replace(/"/g,'""')}"`,
     `"${(ev.description||'').replace(/"/g,'""')}"`,
     DAYS_FULL[ev.di],
     fmt(ev.startH),
     fmt(ev.endH),
-    ev.color.bg
-  ]);
-  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    ev.color.bg,
+    `"${schedName}"`
+  ].join(','));
+}
+
+async function exportCSV(allSchedules) {
+  const headers = ['Title','Description','Day','Start Time','End Time','Color','Schedule'].join(',');
+  if (!allSchedules) {
+    if (!events.length) { showStatus('Nothing to export', 'error'); return; }
+    const rows = eventsToCSVRows(events, currentSchedule);
+    downloadCSV([headers, ...rows].join('\n'),
+      `schedule-${currentSchedule.replace(/[^a-z0-9]/gi,'-')}-${new Date().toISOString().slice(0,10)}.csv`);
+    showStatus(`Exported ${events.length} events`);
+  } else {
+    showStatus('Fetching all schedules…', 'saving');
+    try {
+      const allRows = await sbFetch('events?select=*&order=schedule_name.asc,created_at.asc');
+      if (!allRows.length) { showStatus('No events found', 'error'); return; }
+      const mapped = allRows.map(r => ({
+        title: r.title, description: r.description||'',
+        di: r.day_index, startH: r.start_h, endH: r.end_h,
+        color: {bg: r.color_bg, fg: r.color_fg}
+      }));
+      const rows = allRows.map((r,i) => eventsToCSVRows([mapped[i]], r.schedule_name)[0]);
+      downloadCSV([headers, ...rows].join('\n'),
+        `all-schedules-${new Date().toISOString().slice(0,10)}.csv`);
+      showStatus(`Exported ${allRows.length} events from all schedules`);
+    } catch(e) { showStatus('Export failed: ' + e.message, 'error'); }
+  }
+}
+
+function downloadCSV(csv, filename) {
   const blob = new Blob([csv], {type:'text/csv'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url;
-  a.download = `schedule-${currentSchedule.replace(/[^a-z0-9]/gi,'-')}-${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
+  a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
-  showStatus(`Exported ${events.length} events`);
 }
 
-document.getElementById('exportBtn').addEventListener('click', exportCSV);
+document.getElementById('exportBtn').addEventListener('click', () => {
+  // Show mini picker: current schedule or all
+  const existing = document.getElementById('exportPickerWrap');
+  if (existing) { existing.remove(); return; }
+  const btn = document.getElementById('exportBtn');
+  const wrap = document.createElement('div');
+  wrap.id = 'exportPickerWrap';
+  wrap.style.cssText = 'position:fixed;z-index:250;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,0.15);overflow:hidden;min-width:200px';
+  const rect = btn.getBoundingClientRect();
+  wrap.style.top = (rect.bottom + 6) + 'px';
+  wrap.style.left = rect.left + 'px';
+  const opts = [
+    {label: `Current: ${currentSchedule}`, all: false},
+    {label: 'All schedules (full backup)', all: true}
+  ];
+  opts.forEach(opt => {
+    const item = document.createElement('div');
+    item.style.cssText = 'padding:10px 14px;cursor:pointer;font-size:13px;color:var(--text);display:flex;align-items:center;gap:8px';
+    item.innerHTML = `<i class="ti ti-${opt.all ? 'database-export' : 'file-spreadsheet'}"></i> ${opt.label}`;
+    item.addEventListener('mouseenter', () => item.style.background = 'var(--bg2)');
+    item.addEventListener('mouseleave', () => item.style.background = '');
+    item.addEventListener('click', () => { wrap.remove(); exportCSV(opt.all); });
+    wrap.appendChild(item);
+  });
+  document.body.appendChild(wrap);
+  setTimeout(() => document.addEventListener('click', function h(e) {
+    if (!wrap.contains(e.target) && e.target !== btn) { wrap.remove(); document.removeEventListener('click', h); }
+  }), 50);
+});
 
 // ─── INIT ─────────────────────────────────────────────────────────
 async function init() {
