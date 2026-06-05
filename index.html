@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<title>Schedule v1.10</title>
+<title>Schedule v1.11</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -140,7 +140,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 <div id="app">
   <div class="toolbar">
-    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.10</span></span>
+    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.11</span></span>
     <select class="schedule-sel" id="scheduleSel"></select>
     <button class="btn" id="manageSchBtn" title="Manage schedules"><i class="ti ti-settings"></i></button>
     <div style="display:flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg2)">
@@ -772,9 +772,9 @@ function renderEvents() {
       const h = Math.max(SLOT_H, (ve - vs) * SLOT_H);
       const el = document.createElement('div');
       el.className = 'evt' + (ev.isOverlay ? ' overlay-evt' : '');
-      if (ev.isOverlay) el.style.opacity = (document.getElementById('overlayOpacity').value / 100);
       el.dataset.id = ev.id;
-      el.style.cssText = `top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${pct}% - 4px);background:${ev.color.bg};color:${ev.color.fg}`;
+      const opacityStyle = ev.isOverlay ? `;opacity:${document.getElementById('overlayOpacity').value / 100}` : '';
+      el.style.cssText = `top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${pct}% - 4px);background:${ev.color.bg};color:${ev.color.fg}${opacityStyle}`;
       const descHtml = ev.description ? `<div class="evt-desc">${ev.description}</div>` : '';
       el.innerHTML = `
         <div class="resize-bar-top" data-id="${ev.id}"></div>
