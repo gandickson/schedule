@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<title>Schedule v1.11</title>
+<title>Schedule v1.12</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -140,7 +140,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 <div id="app">
   <div class="toolbar">
-    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.11</span></span>
+    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.12</span></span>
     <select class="schedule-sel" id="scheduleSel"></select>
     <button class="btn" id="manageSchBtn" title="Manage schedules"><i class="ti ti-settings"></i></button>
     <div style="display:flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg2)">
@@ -1074,8 +1074,9 @@ function finishCreate() {
   const drag = createDrag;
   createDrag = null;
   const drawn = drag.endH - drag.startH;
-  const endH = drawn <= 0.5 ? drag.startH + 1 : drag.endH;
-  pendingEvt = {di: drag.di, startH: drag.startH, endH};
+  // Only open dialog if user dragged at least 1hr
+  if (drawn < 1) return;
+  pendingEvt = {di: drag.di, startH: drag.startH, endH: drag.endH};
   openNew();
 }
 
