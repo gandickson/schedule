@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<title>Schedule v1.13</title>
+<title>Schedule v1.14</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -141,7 +141,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 <div id="app">
   <div class="toolbar">
-    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.13</span></span>
+    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.14</span></span>
     <select class="schedule-sel" id="scheduleSel"></select>
     <button class="btn" id="manageSchBtn" title="Manage schedules"><i class="ti ti-settings"></i></button>
     <div style="display:flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg2)">
@@ -871,8 +871,17 @@ function calcDragResult(clientX, clientY) {
 
 function onDragMove(e) {
   if (!drag) return;
+  if (drag.type === 'move') drag.ctrlCopy = e.ctrlKey || e.metaKey;
   const {ns, ne, nd, color} = calcDragResult(e.clientX, e.clientY);
   positionGhost(nd, ns, ne, color);
+  // Show +COPY badge on ghost
+  const g = document.getElementById('ghostBlock');
+  if (g && drag.type === 'move') {
+    let badge = g.querySelector('.ghost-copy-badge');
+    if (drag.ctrlCopy) {
+      if (!badge) { badge = document.createElement('div'); badge.className = 'ghost-copy-badge'; badge.textContent = '+COPY'; g.appendChild(badge); }
+    } else { if (badge) badge.remove(); }
+  }
 }
 
 async function onDragUp(e) {
@@ -882,29 +891,45 @@ async function onDragUp(e) {
   document.removeEventListener('mouseup', onDragUp);
   if (!drag) return;
   const ev = events.find(x => x.id == drag.id);
+  const isCopy = drag.ctrlCopy || e.ctrlKey || e.metaKey;
   if (ev) {
     const {ns, ne, nd} = calcDragResult(e.clientX, e.clientY);
     if (drag.type === 'move') {
       const moved = ns !== drag.startH || ne !== drag.endH || nd !== drag.di;
       document.querySelectorAll('.evt.dragging').forEach(el => el.classList.remove('dragging'));
       drag = null;
-      if (moved) {
-        const msg = `Move "${ev.title}" from ${DAYS[ev.di]} ${fmt(ev.startH)}–${fmt(ev.endH)} to ${DAYS[nd]} ${fmt(ns)}–${fmt(ne)}?`;
-        const confirmed = await showConfirm(msg);
-        if (!confirmed) { renderEvents(); return; }
+      if (isCopy && moved) {
+        // Ctrl+drag: duplicate to new position, keep original
+        const newEv = {id: 'tmp-' + Date.now(), title: ev.title,
+          description: ev.description || '', color: {...ev.color},
+          di: nd, startH: ns, endH: ne};
+        events.push(newEv);
+        renderEvents();
+        showStatus('Copying…', 'saving');
+        try { newEv.id = await insertEvent(newEv); pushUndo('create', null); showStatus('Copied ✓'); renderEvents(); }
+        catch(err) { showStatus('Copy failed', 'error'); }
+      } else {
+        if (moved) {
+          const msg = `Move "${ev.title}" from ${DAYS[ev.di]} ${fmt(ev.startH)}–${fmt(ev.endH)} to ${DAYS[nd]} ${fmt(ns)}–${fmt(ne)}?`;
+          const confirmed = await showConfirm(msg);
+          if (!confirmed) { renderEvents(); return; }
+        }
+        pushUndo('move', ev);
+        ev.startH = ns; ev.endH = ne; ev.di = nd;
+        renderEvents();
+        showStatus('Saving…', 'saving');
+        try { await updateEvent(ev); showStatus('Saved'); } catch(err) { showStatus('Save failed', 'error'); }
       }
-      pushUndo('move', ev);
-      ev.startH = ns; ev.endH = ne; ev.di = nd;
     } else {
       pushUndo('move', ev);
       if (drag.handle === 'top') { ev.startH = ns; }
       else { ev.endH = ne; }
       document.querySelectorAll('.evt.dragging').forEach(el => el.classList.remove('dragging'));
       drag = null;
+      renderEvents();
+      showStatus('Saving…', 'saving');
+      try { await updateEvent(ev); showStatus('Saved'); } catch(err) { showStatus('Save failed', 'error'); }
     }
-    renderEvents();
-    showStatus('Saving…', 'saving');
-    try { await updateEvent(ev); showStatus('Saved'); } catch(err) { showStatus('Save failed', 'error'); }
   } else { drag = null; }
 }
 
