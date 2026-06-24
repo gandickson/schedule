@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<title>Schedule v1.14</title>
+<title>Schedule v1.17</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -60,7 +60,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .day-head.today .dnum{color:var(--today-text);font-weight:700}
 .day-col{border-right:1px solid var(--border);position:relative}
 .day-col:last-child{border-right:none}
-.hslot{height:28px;border-bottom:1px dashed var(--border);cursor:crosshair}
+.hslot{height:36px;border-bottom:1px dashed var(--border);cursor:crosshair}
 .hslot.on-hour{border-bottom:2px solid var(--border2)}
 .hslot:hover{background:var(--bg2)}
 .now-line{position:absolute;left:0;right:0;height:2px;background:var(--now-line);z-index:15;pointer-events:none}
@@ -141,7 +141,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 <div id="app">
   <div class="toolbar">
-    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.14</span></span>
+    <span class="toolbar-title">Weekly Schedule &nbsp;<span style="font-weight:400;font-size:12px;opacity:0.6">v1.17</span></span>
     <select class="schedule-sel" id="scheduleSel"></select>
     <button class="btn" id="manageSchBtn" title="Manage schedules"><i class="ti ti-settings"></i></button>
     <div style="display:flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg2)">
@@ -275,7 +275,8 @@ const COLORS = [
   {bg:'#EF4444',fg:'#fff'},{bg:'#8B5CF6',fg:'#fff'},{bg:'#EC4899',fg:'#fff'},
   {bg:'#14B8A6',fg:'#fff'},{bg:'#F97316',fg:'#fff'},{bg:'#6366F1',fg:'#fff'}
 ];
-const SLOT_H = 28;
+const SLOT_H = 28;  // used for drag math (pixels per half-hour, do not change)
+const ROW_H = 36;   // visual row height in CSS
 
 let hideOff = true;
 let events = [];
@@ -670,7 +671,7 @@ function buildGutter() {
   for (let h = r.s; h < r.e; h++) {
     const t = document.createElement('div');
     t.className = 'time-tick hr';
-    t.style.height = (SLOT_H * 2) + 'px';
+    t.style.height = (ROW_H * 2) + 'px';
     t.textContent = fmt(h);
     g.appendChild(t);
   }
@@ -696,7 +697,7 @@ function buildGrid() {
     const col = document.createElement('div');
     col.className = 'day-col';
     col.dataset.di = di;
-    col.style.height = (ts * SLOT_H) + 'px';
+    col.style.height = (ts * ROW_H) + 'px';
     for (let s = 0; s < ts; s++) {
       const slot = document.createElement('div');
       slot.className = 'hslot' + (s % 2 === 1 ? ' on-hour' : '');
@@ -721,7 +722,7 @@ function updateNowLine() {
   const today = todayDayIndex();
   const cols = document.getElementById('gridInner').querySelectorAll('.day-col');
   const col = cols[today]; if (!col) return;
-  const top = hourToSlot(h) * SLOT_H;
+  const top = hourToSlot(h) * ROW_H;
   const line = document.createElement('div');
   line.className = 'now-line';
   line.style.top = top + 'px';
@@ -769,8 +770,8 @@ function renderEvents() {
       const left = g.col * pct;
       const vs = Math.max(0, hourToSlot(ev.startH));
       const ve = Math.min(totalSlots(), hourToSlot(ev.endH));
-      const top = vs * SLOT_H;
-      const h = Math.max(SLOT_H, (ve - vs) * SLOT_H);
+      const top = vs * ROW_H;
+      const h = Math.max(ROW_H, (ve - vs) * ROW_H);
       const el = document.createElement('div');
       el.className = 'evt' + (ev.isOverlay ? ' overlay-evt' : '');
       el.dataset.id = ev.id;
@@ -841,7 +842,7 @@ function positionGhost(di, startH, endH, color) {
   const colRect = col.getBoundingClientRect();
   const gridRect = document.getElementById('gridInner').getBoundingClientRect();
   const g = getGhost();
-  g.style.cssText = `display:block;left:${colRect.left-gridRect.left+2}px;width:${colRect.width-4}px;top:${vs*SLOT_H}px;height:${(ve-vs)*SLOT_H}px;background:${color}`;
+  g.style.cssText = `display:block;left:${colRect.left-gridRect.left+2}px;width:${colRect.width-4}px;top:${vs*ROW_H}px;height:${(ve-vs)*ROW_H}px;background:${color}`;
 }
 
 function calcDragResult(clientX, clientY) {
@@ -1046,7 +1047,7 @@ function slotFromClientY(clientY) {
   const gi = document.getElementById('gridInner');
   const rect = gi.getBoundingClientRect();
   const scrollTop = document.getElementById('gridScroll').scrollTop;
-  return Math.floor((clientY - rect.top + scrollTop) / SLOT_H);
+  return Math.floor((clientY - rect.top + scrollTop) / ROW_H);
 }
 
 function onCreateMove(e) {
@@ -1054,7 +1055,7 @@ function onCreateMove(e) {
   const r = visRange();
   // Use delta from mousedown position so there's no jump on first move
   const dy = e.clientY - createDrag.startY;
-  const slotsAdded = Math.round(dy / SLOT_H);
+  const slotsAdded = Math.round(dy / ROW_H);
   const endH = Math.round(Math.max(createDrag.startH + 0.5, Math.min(r.e, createDrag.startH + 0.5 + slotsAdded * 0.5)) * 2) / 2;
   createDrag.endH = endH;
   positionGhost(createDrag.di, createDrag.startH, createDrag.endH, '#3B82F6');
@@ -1087,7 +1088,7 @@ function onCreateTouchMove(e) {
   e.preventDefault();
   createDrag.activated = true;
   const r = visRange();
-  const slotsAdded = Math.round(dy / SLOT_H);
+  const slotsAdded = Math.round(dy / ROW_H);
   const endH = Math.round(Math.max(createDrag.startH + 0.5, Math.min(r.e, createDrag.startH + 0.5 + slotsAdded * 0.5)) * 2) / 2;
   createDrag.endH = endH;
   positionGhost(createDrag.di, createDrag.startH, createDrag.endH, '#3B82F6');
@@ -1353,7 +1354,7 @@ async function init() {
   document.getElementById('loadingOverlay').style.display = 'none';
   // scroll to 8am on load
   const r = visRange();
-  const scrollTo = (8 - r.s) * 2 * SLOT_H + 40;
+  const scrollTo = (8 - r.s) * 2 * ROW_H + 40;
   document.getElementById('gridScroll').scrollTop = Math.max(0, scrollTo);
 }
 
